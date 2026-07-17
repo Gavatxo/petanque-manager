@@ -5,29 +5,22 @@ import {
     CalendarDays,
     ClipboardList,
     Copy,
-    Download,
     DoorClosed,
     DoorOpen,
+    Download,
     LayoutGrid,
     MapPin,
+    Monitor,
     Pencil,
     Play,
     QrCode,
     Target,
+    Timer,
     Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { formatDateTime, statusBadgeVariant } from '@/lib/tournaments';
+import { BODY, C, DISPLAY, MONO } from '@/lib/petanque';
+import { formatDateTime } from '@/lib/tournaments';
 import type { BreadcrumbItem, Tournament } from '@/types';
 
 type RegistrationSummary = {
@@ -44,6 +37,32 @@ type Props = {
     registrationSummary: RegistrationSummary;
 };
 
+function statusTone(status: string): { bg: string; color: string } {
+    switch (status) {
+        case 'running':
+            return { bg: C.greenBg, color: C.greenText };
+        case 'registration_open':
+            return { bg: C.primarySoft, color: C.primarySoftText };
+        case 'checkin':
+            return { bg: C.amberBg, color: C.amberText };
+        case 'archived':
+            return { bg: C.neutralBg, color: C.neutralText };
+        default:
+            return { bg: C.neutralBg, color: C.neutralText };
+    }
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+    return (
+        <div
+            className="mb-4 text-[14px] font-bold uppercase"
+            style={{ fontFamily: DISPLAY, color: C.ink, letterSpacing: '0.05em' }}
+        >
+            {children}
+        </div>
+    );
+}
+
 function InfoRow({
     icon: Icon,
     label,
@@ -54,14 +73,31 @@ function InfoRow({
     value: string;
 }) {
     return (
-        <div className="flex items-start gap-3">
-            <Icon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+        <div className="flex items-start gap-2.5">
+            <div
+                className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg"
+                style={{ background: C.primarySoft }}
+            >
+                <Icon className="size-4" style={{ color: C.primary }} />
+            </div>
             <div>
-                <p className="text-muted-foreground text-xs">{label}</p>
-                <p className="text-sm font-medium">{value}</p>
+                <div className="mb-0.5 text-[11px]" style={{ color: C.muted }}>
+                    {label}
+                </div>
+                <div className="text-[13px] font-semibold" style={{ color: C.ink }}>
+                    {value}
+                </div>
             </div>
         </div>
     );
+}
+
+function ghostBtn(): React.CSSProperties {
+    return {
+        border: `1.5px solid ${C.border}`,
+        background: C.card,
+        color: C.ink2,
+    };
 }
 
 export default function ShowTournament({
@@ -71,8 +107,9 @@ export default function ShowTournament({
 }: Props) {
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     const registrationOpen = tournament.status === 'registration_open';
+    const tone = statusTone(tournament.status);
 
-    const copyRegistrationUrl = async () => {
+    const copy = async () => {
         try {
             await navigator.clipboard.writeText(tournament.registration_url);
             toast.success('Lien d’inscription copié.');
@@ -81,70 +118,89 @@ export default function ShowTournament({
         }
     };
 
+    const stats = [
+        { label: 'En attente', value: registrationSummary.pending, color: C.ink },
+        { label: 'Confirmées', value: registrationSummary.confirmed, color: C.primary },
+        { label: 'Présents', value: registrationSummary.checked_in, color: C.greenText },
+        { label: 'Annulées', value: registrationSummary.cancelled, color: C.muted },
+        { label: 'Équipes', value: registrationSummary.teams, color: C.ink },
+    ];
+
     return (
-        <>
+        <div
+            className="flex h-full flex-1 flex-col overflow-hidden"
+            style={{ background: C.bg, fontFamily: BODY }}
+        >
             <Head title={tournament.name} />
 
-            <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-semibold tracking-tight">
-                                {tournament.name}
-                            </h1>
-                            <Badge variant={statusBadgeVariant(tournament.status)}>
-                                {tournament.status_label}
-                            </Badge>
-                        </div>
-                        {tournament.description && (
-                            <p className="text-muted-foreground max-w-prose text-sm">
-                                {tournament.description}
-                            </p>
-                        )}
+            {/* Header */}
+            <header
+                className="shrink-0 px-6 py-3"
+                style={{ background: C.card, borderBottom: `1px solid ${C.border}` }}
+            >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        <h1
+                            className="text-[22px] font-extrabold"
+                            style={{ fontFamily: DISPLAY, color: C.ink }}
+                        >
+                            {tournament.name}
+                        </h1>
+                        <span
+                            className="rounded-full px-2.5 py-1 text-[11px] font-bold uppercase"
+                            style={{ background: tone.bg, color: tone.color, letterSpacing: '0.04em' }}
+                        >
+                            {tournament.status_label}
+                        </span>
                     </div>
                     <div className="flex gap-2">
-                        {tournament.is_archived ? (
-                            <Button
-                                variant="secondary"
-                                onClick={() =>
-                                    router.patch(`${showUrl}/unarchive`, {}, { preserveScroll: true })
-                                }
-                            >
-                                <ArchiveRestore />
-                                Restaurer
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="secondary"
-                                onClick={() =>
-                                    router.patch(`${showUrl}/archive`, {}, { preserveScroll: true })
-                                }
-                            >
-                                <Archive />
-                                Archiver
-                            </Button>
-                        )}
-                        <Button asChild variant="secondary">
-                            <Link href={`${showUrl}/edit`}>
-                                <Pencil />
-                                Gérer
-                            </Link>
-                        </Button>
-                        <Button asChild>
-                            <Link href={`${showUrl}/live`}>
-                                <Play />
-                                Piloter
-                            </Link>
-                        </Button>
+                        <button
+                            onClick={() =>
+                                router.patch(
+                                    `${showUrl}/${tournament.is_archived ? 'unarchive' : 'archive'}`,
+                                    {},
+                                    { preserveScroll: true },
+                                )
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+                            style={ghostBtn()}
+                        >
+                            {tournament.is_archived ? (
+                                <ArchiveRestore className="size-3.5" />
+                            ) : (
+                                <Archive className="size-3.5" />
+                            )}
+                            {tournament.is_archived ? 'Restaurer' : 'Archiver'}
+                        </button>
+                        <Link
+                            href={`${showUrl}/edit`}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+                            style={ghostBtn()}
+                        >
+                            <Pencil className="size-3.5" />
+                            Gérer
+                        </Link>
+                        <Link
+                            href={`${showUrl}/live`}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white"
+                            style={{ background: C.primary }}
+                        >
+                            <Play className="size-3.5" />
+                            Piloter
+                        </Link>
                     </div>
                 </div>
+            </header>
 
-                <div className="grid gap-6 lg:grid-cols-3">
-                    <Card className="lg:col-span-2">
-                        <CardHeader>
-                            <CardTitle>Détails</CardTitle>
-                        </CardHeader>
-                        <CardContent className="grid gap-5 sm:grid-cols-2">
+            <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
+                {/* Details + QR */}
+                <div className="grid gap-4 lg:grid-cols-[1fr_260px]">
+                    <div
+                        className="rounded-xl p-5"
+                        style={{ background: C.card, border: `1px solid ${C.border}` }}
+                    >
+                        <SectionTitle>Détails du concours</SectionTitle>
+                        <div className="grid gap-3.5 sm:grid-cols-2">
                             <InfoRow
                                 icon={CalendarDays}
                                 label="Date & heure"
@@ -155,177 +211,218 @@ export default function ShowTournament({
                                 label="Lieu"
                                 value={tournament.location ?? 'À définir'}
                             />
+                            <InfoRow icon={Users} label="Format" value={tournament.team_format_label} />
                             <InfoRow
-                                icon={Users}
-                                label="Format d’équipe"
-                                value={tournament.team_format_label}
-                            />
-                            <InfoRow
-                                icon={Target}
+                                icon={Timer}
                                 label="Qualifications"
                                 value={`${tournament.qualifying_rounds} parties · ${tournament.points_target} points`}
                             />
                             <InfoRow
                                 icon={LayoutGrid}
-                                label="Tableaux"
+                                label="Tableaux finaux"
                                 value={`${tournament.tableaux_count} tableau(x)`}
                             />
                             <InfoRow
-                                icon={Users}
+                                icon={Target}
                                 label="Équipes max."
                                 value={
                                     tournament.max_teams === null
                                         ? 'Illimité'
-                                        : String(tournament.max_teams)
+                                        : `${tournament.max_teams} équipes`
                                 }
                             />
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </div>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <QrCode className="size-4" />
-                                QR code d’inscription
-                            </CardTitle>
-                            <CardDescription>
-                                À afficher sur place : les joueurs scannent pour s’inscrire.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            <div className="flex justify-center rounded-lg bg-white p-3">
-                                <img
-                                    src={registrationQr}
-                                    alt="QR code d’inscription"
-                                    className="size-44"
-                                />
+                    <div
+                        className="flex flex-col rounded-xl p-5"
+                        style={{ background: C.card, border: `1px solid ${C.border}` }}
+                    >
+                        <div
+                            className="mb-1 flex items-center gap-1.5 text-[14px] font-bold uppercase"
+                            style={{ fontFamily: DISPLAY, color: C.ink, letterSpacing: '0.05em' }}
+                        >
+                            <QrCode className="size-3.5" />
+                            QR inscription
+                        </div>
+                        <p className="mb-3 text-[11px]" style={{ color: C.muted }}>
+                            Affichez sur place, les joueurs scannent pour s’inscrire.
+                        </p>
+                        <div
+                            className="mb-3 flex justify-center rounded-lg bg-white p-3"
+                            style={{ border: `1px solid ${C.border}` }}
+                        >
+                            <img src={registrationQr} alt="QR inscription" className="size-24" />
+                        </div>
+                        <div
+                            className="mb-2.5 rounded-md p-2"
+                            style={{ background: C.bg, border: `1px solid ${C.border}` }}
+                        >
+                            <div className="text-[10px]" style={{ color: C.muted }}>
+                                Lien d’inscription
                             </div>
-                            <div className="bg-muted rounded-md p-2">
-                                <p className="text-muted-foreground text-xs">Lien d’inscription</p>
-                                <p className="mt-1 truncate font-mono text-xs">
-                                    {tournament.registration_url}
-                                </p>
+                            <div
+                                className="truncate text-[10px]"
+                                style={{ fontFamily: MONO, color: C.ink2 }}
+                            >
+                                {tournament.registration_url}
                             </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1"
-                                    onClick={copyRegistrationUrl}
-                                >
-                                    <Copy />
-                                    Copier
-                                </Button>
-                                <Button asChild variant="outline" size="sm" className="flex-1">
-                                    <a href={`${showUrl}/qr`} target="_blank" rel="noreferrer">
-                                        <Download />
-                                        Imprimer
-                                    </a>
-                                </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={copy}
+                                className="flex-1 rounded-lg py-2 text-xs font-semibold"
+                                style={ghostBtn()}
+                            >
+                                <Copy className="mr-1 inline size-3" />
+                                Copier
+                            </button>
+                            <a
+                                href={`${showUrl}/qr`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex-1 rounded-lg py-2 text-center text-xs font-semibold"
+                                style={ghostBtn()}
+                            >
+                                <Download className="mr-1 inline size-3" />
+                                Imprimer
+                            </a>
+                        </div>
+                        <a
+                            href={`/ecran/${tournament.registration_token}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center justify-center gap-1.5 text-xs font-medium"
+                            style={{ color: C.primary }}
+                        >
+                            <Monitor className="size-3.5" />
+                            Ouvrir l’écran TV
+                        </a>
+                    </div>
                 </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <LayoutGrid className="size-4" />
-                            Terrains ({tournament.courts.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        {tournament.courts.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                                Aucun terrain configuré.{' '}
-                                <Link
-                                    href={`${showUrl}/edit`}
-                                    className="text-primary underline-offset-4 hover:underline"
-                                >
-                                    Ajouter des terrains
-                                </Link>
-                            </p>
-                        ) : (
-                            <div className="flex flex-wrap gap-2">
-                                {tournament.courts.map((court) => (
+                {/* Terrains */}
+                <div
+                    className="rounded-xl p-5"
+                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                >
+                    <SectionTitle>Terrains ({tournament.courts.length})</SectionTitle>
+                    {tournament.courts.length === 0 ? (
+                        <p className="text-sm" style={{ color: C.muted }}>
+                            Aucun terrain configuré.{' '}
+                            <Link
+                                href={`${showUrl}/edit`}
+                                className="underline-offset-4 hover:underline"
+                                style={{ color: C.primary }}
+                            >
+                                Ajouter des terrains
+                            </Link>
+                        </p>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {tournament.courts.map((court) => {
+                                const occupied = court.status === 'occupied';
+
+                                return (
                                     <div
                                         key={court.id}
-                                        className="border-border flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm"
+                                        className="flex items-center gap-2 rounded-lg px-3.5 py-2"
+                                        style={{
+                                            background: C.cardAlt,
+                                            border: `1.5px solid ${occupied ? 'oklch(0.80 0.08 152)' : C.border}`,
+                                        }}
                                     >
-                                        <span className="font-medium">{court.label}</span>
-                                        <Separator orientation="vertical" className="h-4" />
-                                        <span className="text-muted-foreground text-xs">
+                                        <span
+                                            className="size-2 rounded-full"
+                                            style={{ background: occupied ? C.green : C.neutral }}
+                                        />
+                                        <span
+                                            className="text-[13px] font-semibold"
+                                            style={{ color: C.ink }}
+                                        >
+                                            {court.label}
+                                        </span>
+                                        <span className="h-3.5 w-px" style={{ background: C.border }} />
+                                        <span
+                                            className="text-[11px]"
+                                            style={{ color: occupied ? C.greenText : C.muted }}
+                                        >
                                             {court.status_label}
                                         </span>
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
 
-                <Card>
-                    <CardHeader>
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Users className="size-4" />
-                                    Inscriptions
-                                </CardTitle>
-                                <CardDescription>
-                                    {tournament.max_teams === null
-                                        ? 'Nombre d’équipes illimité.'
-                                        : `Maximum ${tournament.max_teams} équipes.`}
-                                </CardDescription>
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                        router.patch(
-                                            `${showUrl}/registrations/${registrationOpen ? 'close' : 'open'}`,
-                                            {},
-                                            { preserveScroll: true },
-                                        )
-                                    }
-                                >
-                                    {registrationOpen ? <DoorClosed /> : <DoorOpen />}
-                                    {registrationOpen ? 'Fermer' : 'Ouvrir'}
-                                </Button>
-                                <Button asChild size="sm">
-                                    <Link href={`${showUrl}/registrations`}>
-                                        <ClipboardList />
-                                        Gérer
-                                    </Link>
-                                </Button>
+                {/* Inscriptions */}
+                <div
+                    className="rounded-xl p-5"
+                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                >
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+                        <div>
+                            <SectionTitle>Inscriptions</SectionTitle>
+                            <div className="-mt-3 text-[12px]" style={{ color: C.muted }}>
+                                {tournament.max_teams === null
+                                    ? 'Nombre d’équipes illimité'
+                                    : `Maximum ${tournament.max_teams} équipes`}
                             </div>
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-                            {(
-                                [
-                                    ['En attente', registrationSummary.pending],
-                                    ['Confirmées', registrationSummary.confirmed],
-                                    ['Présents', registrationSummary.checked_in],
-                                    ['Annulées', registrationSummary.cancelled],
-                                    ['Équipes', registrationSummary.teams],
-                                ] as const
-                            ).map(([label, value]) => (
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() =>
+                                    router.patch(
+                                        `${showUrl}/registrations/${registrationOpen ? 'close' : 'open'}`,
+                                        {},
+                                        { preserveScroll: true },
+                                    )
+                                }
+                                className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold"
+                                style={ghostBtn()}
+                            >
+                                {registrationOpen ? (
+                                    <DoorClosed className="size-3.5" />
+                                ) : (
+                                    <DoorOpen className="size-3.5" />
+                                )}
+                                {registrationOpen
+                                    ? 'Fermer les inscriptions'
+                                    : 'Ouvrir les inscriptions'}
+                            </button>
+                            <Link
+                                href={`${showUrl}/registrations`}
+                                className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white"
+                                style={{ background: C.primary }}
+                            >
+                                <ClipboardList className="size-3.5" />
+                                Gérer
+                            </Link>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+                        {stats.map((s) => (
+                            <div
+                                key={s.label}
+                                className="rounded-xl p-3.5 text-center"
+                                style={{ border: `1.5px solid ${C.border}` }}
+                            >
                                 <div
-                                    key={label}
-                                    className="border-border rounded-lg border p-3 text-center"
+                                    className="mb-1 text-[28px] leading-none font-medium tabular-nums"
+                                    style={{ fontFamily: MONO, color: s.color }}
                                 >
-                                    <p className="text-2xl font-semibold tabular-nums">{value}</p>
-                                    <p className="text-muted-foreground text-xs">{label}</p>
+                                    {s.value}
                                 </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
+                                <div className="text-[11px] font-medium" style={{ color: C.muted }}>
+                                    {s.label}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             </div>
-        </>
+        </div>
     );
 }
 
