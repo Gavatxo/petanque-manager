@@ -1,6 +1,6 @@
 import { Head, Link } from '@inertiajs/react';
 import { CircleCheck, Clock, Crown, Radar } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { BODY, C, DISPLAY } from '@/lib/petanque';
 
 type Props = {
     tournamentName: string;
@@ -15,25 +15,29 @@ type Props = {
 
 export default function Registered({ tournamentName, followUrl, registration }: Props) {
     return (
-        <div className="bg-muted/40 flex min-h-screen flex-col items-center justify-center px-4 py-10">
+        <div className="flex min-h-screen flex-col items-center justify-center px-4 py-10" style={{ background: C.bg, fontFamily: BODY }}>
             <Head title="Demande d’inscription envoyée" />
 
-            <div className="bg-card text-card-foreground w-full max-w-md space-y-6 rounded-xl border p-8 text-center shadow-sm">
-                <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <div
+                className="w-full max-w-md space-y-6 rounded-2xl p-8 text-center"
+                style={{ background: C.card, border: `1px solid ${C.border}`, boxShadow: '0 2px 12px oklch(0 0 0 / 0.04)' }}
+            >
+                <div
+                    className="mx-auto flex items-center justify-center rounded-full"
+                    style={{ background: C.greenBg, color: C.green, width: 56, height: 56 }}
+                >
                     <CircleCheck className="size-7" />
                 </div>
 
-                <div className="space-y-1">
-                    <h1 className="text-xl font-semibold tracking-tight">
-                        Demande d’inscription envoyée&nbsp;!
+                <div className="space-y-1.5">
+                    <h1 className="text-[24px] font-extrabold" style={{ fontFamily: DISPLAY, color: C.ink }}>
+                        Demande envoyée&nbsp;!
                     </h1>
-                    <p className="text-muted-foreground text-sm">
+                    <p className="text-sm" style={{ color: C.muted }}>
                         {registration.team_name ? (
                             <>
                                 L’équipe{' '}
-                                <strong className="text-foreground">
-                                    {registration.team_name}
-                                </strong>{' '}
+                                <strong style={{ color: C.ink }}>{registration.team_name}</strong>{' '}
                             </>
                         ) : (
                             'Votre équipe '
@@ -42,22 +46,27 @@ export default function Registered({ tournamentName, followUrl, registration }: 
                     </p>
                 </div>
 
-                <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium">
+                <div
+                    className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold"
+                    style={{ background: C.amberBg, color: C.amberText }}
+                >
                     <Clock className="size-4" />
-                    {registration.status_label} — en attente de validation par l’organisateur
+                    {registration.status_label} — en attente de validation
                 </div>
 
-                <ul className="divide-border divide-y text-left text-sm">
+                <ul className="text-left text-sm" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
                     {registration.players.map((player, index) => (
-                        <li key={index} className="flex items-center gap-2 py-2">
-                            {player.is_captain && (
-                                <Crown className="size-4 shrink-0 text-amber-500" />
-                            )}
-                            <span className={player.is_captain ? 'font-medium' : ''}>
+                        <li
+                            key={index}
+                            className="flex items-center gap-2 py-2.5"
+                            style={{ borderBottom: `1px solid ${C.borderSoft}` }}
+                        >
+                            {player.is_captain && <Crown className="size-4 shrink-0" style={{ color: C.amber }} />}
+                            <span style={{ color: C.ink, fontWeight: player.is_captain ? 600 : 400 }}>
                                 {player.first_name} {player.last_name}
                             </span>
                             {player.is_captain && (
-                                <span className="text-muted-foreground ml-auto text-xs">
+                                <span className="ml-auto text-xs" style={{ color: C.muted }}>
                                     Capitaine
                                 </span>
                             )}
@@ -65,14 +74,16 @@ export default function Registered({ tournamentName, followUrl, registration }: 
                     ))}
                 </ul>
 
-                <Button asChild className="w-full">
-                    <Link href={followUrl}>
-                        <Radar />
-                        Suivre mon équipe en direct
-                    </Link>
-                </Button>
+                <Link
+                    href={followUrl}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg py-3.5 text-[15px] font-bold text-white"
+                    style={{ background: C.primary }}
+                >
+                    <Radar className="size-4" />
+                    Suivre mon équipe en direct
+                </Link>
 
-                <p className="text-muted-foreground text-xs">
+                <p className="text-xs" style={{ color: C.muted }}>
                     Présentez-vous le jour du concours pour valider votre présence.
                 </p>
             </div>
