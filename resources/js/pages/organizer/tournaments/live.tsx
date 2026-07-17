@@ -36,6 +36,7 @@ type MatchVM = {
     winner_team_id: number | null;
     status: string;
     is_walkover: boolean;
+    is_forfeit: boolean;
 };
 
 type RoundVM = { round: number; label?: string; matches: MatchVM[] };
@@ -94,10 +95,12 @@ function MatchCard({
     match,
     onScore,
     onCorrect,
+    onForfeit,
 }: {
     match: MatchVM;
     onScore: (m: MatchVM) => void;
     onCorrect: (m: MatchVM) => void;
+    onForfeit: (m: MatchVM) => void;
 }) {
     if (match.status === 'bye') {
         const qualified = match.team_a ?? match.team_b;
@@ -136,20 +139,38 @@ function MatchCard({
                 />
             </div>
             {isActionable(match.status) && match.team_a && match.team_b && (
-                <Button size="sm" className="w-full" onClick={() => onScore(match)}>
-                    Saisir le score
-                </Button>
+                <div className="flex gap-1">
+                    <Button size="sm" className="flex-1" onClick={() => onScore(match)}>
+                        Saisir le score
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-muted-foreground"
+                        onClick={() => onForfeit(match)}
+                    >
+                        <Flag />
+                        Forfait
+                    </Button>
+                </div>
             )}
             {finished && (
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground h-7 w-full"
-                    onClick={() => onCorrect(match)}
-                >
-                    <Pencil />
-                    Corriger
-                </Button>
+                <div className="flex items-center gap-2">
+                    {match.is_forfeit && (
+                        <span className="text-muted-foreground text-xs font-medium">
+                            Forfait
+                        </span>
+                    )}
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground ml-auto h-7"
+                        onClick={() => onCorrect(match)}
+                    >
+                        <Pencil />
+                        Corriger
+                    </Button>
+                </div>
             )}
         </div>
     );
@@ -197,6 +218,20 @@ export default function LiveTournament({
         } else {
             router.post(`/organizer/matches/${scoring.id}/result`, payload, options);
         }
+    };
+
+    const [forfeiting, setForfeiting] = useState<MatchVM | null>(null);
+    const openForfeit = (match: MatchVM) => setForfeiting(match);
+    const submitForfeit = (teamId: number | null) => {
+        if (!forfeiting || teamId === null) {
+            return;
+        }
+
+        router.post(
+            `/organizer/matches/${forfeiting.id}/forfeit`,
+            { forfeiting_team_id: teamId },
+            { preserveScroll: true, onSuccess: () => setForfeiting(null) },
+        );
     };
 
     // Le vainqueur change-t-il lors d'une correction ? (déclenche un recalcul)
@@ -287,6 +322,7 @@ export default function LiveTournament({
                                                 match={match}
                                                 onScore={openScore}
                                                 onCorrect={openCorrect}
+                                                onForfeit={openForfeit}
                                             />
                                         ))}
                                     </CardContent>
@@ -364,6 +400,7 @@ export default function LiveTournament({
                                                         match={match}
                                                         onScore={openScore}
                                                         onCorrect={openCorrect}
+                                                        onForfeit={openForfeit}
                                                     />
                                                 ))}
                                             </div>
@@ -457,6 +494,40 @@ export default function LiveTournament({
                         </Button>
                         <Button onClick={submitScore}>
                             {mode === 'correct' ? 'Corriger' : 'Valider'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Forfait */}
+            <Dialog open={forfeiting !== null} onOpenChange={(open) => !open && setForfeiting(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Déclarer un forfait</DialogTitle>
+                        <DialogDescription>
+                            Quelle équipe déclare forfait&nbsp;? L’adversaire l’emporte{' '}
+                            {tournament.points_target}-0.
+                        </DialogDescription>
+                    </DialogHeader>
+                    {forfeiting && (
+                        <div className="grid gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => submitForfeit(forfeiting.team_a_id)}
+                            >
+                                {forfeiting.team_a} déclare forfait
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => submitForfeit(forfeiting.team_b_id)}
+                            >
+                                {forfeiting.team_b} déclare forfait
+                            </Button>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="ghost" onClick={() => setForfeiting(null)}>
+                            Annuler
                         </Button>
                     </DialogFooter>
                 </DialogContent>

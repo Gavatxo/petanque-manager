@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $winner_team_id
  * @property string $status
  * @property bool $is_walkover
+ * @property bool $is_forfeit
  * @property int|null $result_sequence
  * @property-read Tournament $tournament
  * @property-read Team|null $teamA
@@ -52,6 +53,7 @@ class Matchup extends Model
         'winner_team_id',
         'status',
         'is_walkover',
+        'is_forfeit',
         'result_sequence',
     ];
 
@@ -63,6 +65,7 @@ class Matchup extends Model
             'score_a' => 'integer',
             'score_b' => 'integer',
             'is_walkover' => 'boolean',
+            'is_forfeit' => 'boolean',
             'result_sequence' => 'integer',
         ];
     }

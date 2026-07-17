@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Organizer;
 
 use App\Application\Tournament\CorrectMatchResult;
 use App\Application\Tournament\Exception\TournamentWorkflowException;
+use App\Application\Tournament\ForfeitMatch;
 use App\Application\Tournament\RecordMatchResult;
 use App\Application\Tournament\StartFinals;
 use App\Application\Tournament\StartQualification;
@@ -148,6 +149,23 @@ class LiveController extends Controller
         return $this->success('Phases finales lancées.');
     }
 
+    public function forfeit(Request $request, Matchup $matchup, ForfeitMatch $action): RedirectResponse
+    {
+        $this->authorize('update', $matchup->tournament);
+
+        $validated = $request->validate([
+            'forfeiting_team_id' => ['required', 'integer'],
+        ]);
+
+        try {
+            $action->handle($matchup, $validated['forfeiting_team_id']);
+        } catch (TournamentWorkflowException|InvalidTournamentStateException $e) {
+            return $this->error($e->getMessage());
+        }
+
+        return $this->success('Forfait enregistré.');
+    }
+
     /**
      * @param  Collection<int, Matchup>  $matches
      * @param  array<int, array{name: string, seed: int}>  $names
@@ -192,6 +210,7 @@ class LiveController extends Controller
             'team_b_id' => $m->team_b_id,
             'status' => $m->status,
             'is_walkover' => $m->is_walkover,
+            'is_forfeit' => $m->is_forfeit,
         ];
     }
 
