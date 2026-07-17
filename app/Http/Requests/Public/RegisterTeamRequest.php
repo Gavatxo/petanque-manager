@@ -47,7 +47,8 @@ class RegisterTeamRequest extends FormRequest
                 return;
             }
 
-            if ($tournament->max_teams !== null && $tournament->teams()->count() >= $tournament->max_teams) {
+            if ($tournament->max_teams !== null
+                && $tournament->registrations()->active()->count() >= $tournament->max_teams) {
                 $validator->errors()->add('players', 'Le concours affiche complet : plus de place disponible.');
             }
         });

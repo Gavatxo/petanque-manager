@@ -3,15 +3,16 @@ import {
     Archive,
     ArchiveRestore,
     CalendarDays,
+    ClipboardList,
     Copy,
-    Crown,
     Download,
+    DoorClosed,
+    DoorOpen,
     LayoutGrid,
     MapPin,
     Pencil,
     QrCode,
     Target,
-    Trash2,
     Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,17 +29,18 @@ import { Separator } from '@/components/ui/separator';
 import { formatDateTime, statusBadgeVariant } from '@/lib/tournaments';
 import type { BreadcrumbItem, Tournament } from '@/types';
 
-type RegisteredTeam = {
-    id: number;
-    name: string;
-    seed: number;
-    players: { name: string; is_captain: boolean }[];
+type RegistrationSummary = {
+    pending: number;
+    confirmed: number;
+    checked_in: number;
+    cancelled: number;
+    teams: number;
 };
 
 type Props = {
     tournament: Tournament;
     registrationQr: string;
-    teams: RegisteredTeam[];
+    registrationSummary: RegistrationSummary;
 };
 
 function InfoRow({
@@ -61,8 +63,13 @@ function InfoRow({
     );
 }
 
-export default function ShowTournament({ tournament, registrationQr, teams }: Props) {
+export default function ShowTournament({
+    tournament,
+    registrationQr,
+    registrationSummary,
+}: Props) {
     const showUrl = `/organizer/tournaments/${tournament.id}`;
+    const registrationOpen = tournament.status === 'registration_open';
 
     const copyRegistrationUrl = async () => {
         try {
@@ -252,63 +259,62 @@ export default function ShowTournament({ tournament, registrationQr, teams }: Pr
 
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Users className="size-4" />
-                            Équipes inscrites ({teams.length})
-                        </CardTitle>
-                        <CardDescription>
-                            {tournament.max_teams === null
-                                ? 'Nombre d’équipes illimité.'
-                                : `${teams.length} / ${tournament.max_teams} équipes.`}
-                        </CardDescription>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Users className="size-4" />
+                                    Inscriptions
+                                </CardTitle>
+                                <CardDescription>
+                                    {tournament.max_teams === null
+                                        ? 'Nombre d’équipes illimité.'
+                                        : `Maximum ${tournament.max_teams} équipes.`}
+                                </CardDescription>
+                            </div>
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        router.patch(
+                                            `${showUrl}/registrations/${registrationOpen ? 'close' : 'open'}`,
+                                            {},
+                                            { preserveScroll: true },
+                                        )
+                                    }
+                                >
+                                    {registrationOpen ? <DoorClosed /> : <DoorOpen />}
+                                    {registrationOpen ? 'Fermer' : 'Ouvrir'}
+                                </Button>
+                                <Button asChild size="sm">
+                                    <Link href={`${showUrl}/registrations`}>
+                                        <ClipboardList />
+                                        Gérer
+                                    </Link>
+                                </Button>
+                            </div>
+                        </div>
                     </CardHeader>
                     <CardContent>
-                        {teams.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                                Aucune équipe inscrite pour le moment.
-                            </p>
-                        ) : (
-                            <ul className="divide-border divide-y">
-                                {teams.map((team) => (
-                                    <li
-                                        key={team.id}
-                                        className="flex items-center justify-between gap-3 py-3"
-                                    >
-                                        <div className="min-w-0">
-                                            <p className="font-medium">
-                                                <span className="text-muted-foreground mr-2 text-xs tabular-nums">
-                                                    #{team.seed}
-                                                </span>
-                                                {team.name}
-                                            </p>
-                                            <p className="text-muted-foreground truncate text-sm">
-                                                {team.players.map((player, index) => (
-                                                    <span key={index}>
-                                                        {index > 0 && ' · '}
-                                                        {player.is_captain && (
-                                                            <Crown className="mr-0.5 inline size-3 text-amber-500" />
-                                                        )}
-                                                        {player.name}
-                                                    </span>
-                                                ))}
-                                            </p>
-                                        </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            title="Retirer l’équipe"
-                                            onClick={() =>
-                                                router.delete(`/organizer/teams/${team.id}`, {
-                                                    preserveScroll: true,
-                                                })
-                                            }
-                                        >
-                                            <Trash2 className="text-destructive" />
-                                        </Button>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                            {(
+                                [
+                                    ['En attente', registrationSummary.pending],
+                                    ['Confirmées', registrationSummary.confirmed],
+                                    ['Présents', registrationSummary.checked_in],
+                                    ['Annulées', registrationSummary.cancelled],
+                                    ['Équipes', registrationSummary.teams],
+                                ] as const
+                            ).map(([label, value]) => (
+                                <div
+                                    key={label}
+                                    className="border-border rounded-lg border p-3 text-center"
+                                >
+                                    <p className="text-2xl font-semibold tabular-nums">{value}</p>
+                                    <p className="text-muted-foreground text-xs">{label}</p>
+                                </div>
+                            ))}
+                        </div>
                     </CardContent>
                 </Card>
             </div>

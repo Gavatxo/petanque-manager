@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Registration;
 use App\Models\Team;
 use App\Models\Tournament;
 use App\Models\User;
@@ -9,10 +10,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('the tournament page exposes the inscription QR code and registered teams', function () {
+test('the tournament page exposes the inscription QR code and a registration summary', function () {
     $user = User::factory()->create();
     $tournament = Tournament::factory()->for($user)->create();
-    Team::factory()->for($tournament)->create(['seed' => 1]);
+    Registration::factory()->for($tournament)->create();
+    Registration::factory()->for($tournament)->confirmed()->create();
 
     $this->actingAs($user)
         ->get("/organizer/tournaments/{$tournament->id}")
@@ -20,7 +22,8 @@ test('the tournament page exposes the inscription QR code and registered teams',
         ->assertInertia(fn ($page) => $page
             ->component('organizer/tournaments/show')
             ->where('registrationQr', fn (string $qr) => str_starts_with($qr, 'data:image/svg+xml'))
-            ->has('teams', 1));
+            ->where('registrationSummary.pending', 1)
+            ->where('registrationSummary.confirmed', 1));
 });
 
 test('the QR route returns an SVG image', function () {
@@ -33,7 +36,7 @@ test('the QR route returns an SVG image', function () {
         ->assertHeader('Content-Type', 'image/svg+xml');
 });
 
-test('an organizer can remove a registered team', function () {
+test('an organizer can remove an official team', function () {
     $user = User::factory()->create();
     $tournament = Tournament::factory()->for($user)->create();
     $team = Team::factory()->for($tournament)->create(['seed' => 1]);

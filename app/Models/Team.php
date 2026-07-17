@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 /**
  * @property int $id
  * @property int $tournament_id
+ * @property int|null $registration_id
  * @property string $name
  * @property string|null $follow_token
  * @property int $seed
@@ -20,6 +21,7 @@ use Illuminate\Support\Str;
  * @property int|null $division_seed
  * @property int|null $final_rank
  * @property-read Tournament $tournament
+ * @property-read Registration|null $registration
  * @property-read Collection<int, Player> $players
  */
 class Team extends Model
@@ -29,6 +31,7 @@ class Team extends Model
 
     protected $fillable = [
         'tournament_id',
+        'registration_id',
         'name',
         'follow_token',
         'seed',
@@ -61,6 +64,14 @@ class Team extends Model
     public function tournament(): BelongsTo
     {
         return $this->belongsTo(Tournament::class);
+    }
+
+    /**
+     * @return BelongsTo<Registration, $this>
+     */
+    public function registration(): BelongsTo
+    {
+        return $this->belongsTo(Registration::class);
     }
 
     /**

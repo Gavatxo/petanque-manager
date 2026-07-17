@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Enums\RegistrationStatus;
 use App\Enums\TeamFormat;
 use App\Enums\TournamentStatus;
+use App\Models\Registration;
 use App\Models\Team;
 use App\Models\Tournament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,31 +43,24 @@ test('anyone can view the public registration page', function () {
             ->where('registrationOpen', true));
 });
 
-test('a player can register a team with its players', function () {
+test('a public submission creates a pending registration, not an official team', function () {
     $tournament = openTournament();
 
     $response = $this->post("/i/{$tournament->registration_token}", doublettePayload());
 
-    $team = Team::first();
+    $registration = Registration::first();
 
-    expect($team)->not->toBeNull()
-        ->and($team->tournament_id)->toBe($tournament->id)
-        ->and($team->name)->toBe('Les Fanny’s')
-        ->and($team->seed)->toBe(1)
-        ->and($team->follow_token)->not->toBeNull()
-        ->and($team->players()->count())->toBe(2)
-        ->and($team->players()->where('is_captain', true)->count())->toBe(1);
+    expect($registration)->not->toBeNull()
+        ->and($registration->tournament_id)->toBe($tournament->id)
+        ->and($registration->team_name)->toBe('Les Fanny’s')
+        ->and($registration->status)->toBe(RegistrationStatus::Pending)
+        ->and($registration->follow_token)->not->toBeNull()
+        ->and($registration->players()->count())->toBe(2)
+        ->and($registration->players()->where('is_captain', true)->count())->toBe(1)
+        // Aucune équipe officielle tant que l'organisateur n'a pas validé.
+        ->and(Team::count())->toBe(0);
 
-    $response->assertRedirect("/inscription/confirmee/{$team->follow_token}");
-});
-
-test('registration numbers teams in order', function () {
-    $tournament = openTournament();
-
-    $this->post("/i/{$tournament->registration_token}", doublettePayload('Équipe A'));
-    $this->post("/i/{$tournament->registration_token}", doublettePayload('Équipe B'));
-
-    expect(Team::orderBy('seed')->pluck('seed')->all())->toBe([1, 2]);
+    $response->assertRedirect("/inscription/confirmee/{$registration->follow_token}");
 });
 
 test('registration requires the exact number of players for the format', function () {
@@ -75,7 +70,7 @@ test('registration requires the exact number of players for the format', functio
         'players' => [['first_name' => 'Seul', 'last_name' => 'Joueur']],
     ])->assertSessionHasErrors('players');
 
-    expect(Team::count())->toBe(0);
+    expect(Registration::count())->toBe(0);
 });
 
 test('registration is forbidden when it is not open', function () {
@@ -88,28 +83,29 @@ test('registration is forbidden when it is not open', function () {
     $this->post("/i/{$tournament->registration_token}", doublettePayload())
         ->assertForbidden();
 
-    expect(Team::count())->toBe(0);
+    expect(Registration::count())->toBe(0);
 });
 
-test('registration is refused once the tournament is full', function () {
+test('registration is refused once the active registrations reach the limit', function () {
     $tournament = openTournament(['max_teams' => 1]);
-    Team::factory()->for($tournament)->create(['seed' => 1]);
+    Registration::factory()->for($tournament)->create();
 
     $this->post("/i/{$tournament->registration_token}", doublettePayload())
         ->assertSessionHasErrors('players');
 
-    expect($tournament->teams()->count())->toBe(1);
+    expect($tournament->registrations()->count())->toBe(1);
 });
 
-test('the confirmation page shows the registered team', function () {
+test('the confirmation page shows the pending registration', function () {
     $tournament = openTournament();
     $this->post("/i/{$tournament->registration_token}", doublettePayload('Les Cadors'));
-    $team = Team::first();
+    $registration = Registration::first();
 
-    $this->get("/inscription/confirmee/{$team->follow_token}")
+    $this->get("/inscription/confirmee/{$registration->follow_token}")
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('public/registered')
-            ->where('team.name', 'Les Cadors')
-            ->has('team.players', 2));
+            ->where('registration.team_name', 'Les Cadors')
+            ->where('registration.status', 'pending')
+            ->has('registration.players', 2));
 });
