@@ -27,6 +27,7 @@ use Illuminate\Support\Str;
  * @property int $points_target
  * @property int|null $max_teams
  * @property TournamentStatus $status
+ * @property string|null $current_phase
  * @property string $registration_token
  * @property array<string, mixed>|null $settings
  * @property Carbon|null $started_at
@@ -54,6 +55,7 @@ class Tournament extends Model
         'points_target',
         'max_teams',
         'status',
+        'current_phase',
         'settings',
     ];
 
@@ -97,6 +99,22 @@ class Tournament extends Model
     public function courts(): HasMany
     {
         return $this->hasMany(Court::class);
+    }
+
+    /**
+     * @return HasMany<Team, $this>
+     */
+    public function teams(): HasMany
+    {
+        return $this->hasMany(Team::class);
+    }
+
+    /**
+     * @return HasMany<Matchup, $this>
+     */
+    public function matches(): HasMany
+    {
+        return $this->hasMany(Matchup::class);
     }
 
     public function isArchived(): bool
