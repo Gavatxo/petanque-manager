@@ -8,7 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Organizer\StoreTournamentRequest;
 use App\Http\Requests\Organizer\UpdateTournamentRequest;
 use App\Models\Court;
+use App\Models\Player;
+use App\Models\Team;
 use App\Models\Tournament;
+use App\Services\QrCodeService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -61,14 +64,39 @@ class TournamentController extends Controller
         return redirect()->route('organizer.tournaments.show', $tournament);
     }
 
-    public function show(Tournament $tournament): Response
+    public function show(Tournament $tournament, QrCodeService $qrCode): Response
     {
         $this->authorize('view', $tournament);
 
-        $tournament->load('courts');
+        $tournament->load(['courts', 'teams.players']);
 
         return Inertia::render('organizer/tournaments/show', [
             'tournament' => $this->toDetail($tournament),
+            'registrationQr' => $qrCode->dataUri($tournament->registrationUrl()),
+            'teams' => $tournament->teams
+                ->sortBy('seed')
+                ->map(fn (Team $team) => [
+                    'id' => $team->id,
+                    'name' => $team->name,
+                    'seed' => $team->seed,
+                    'players' => $team->players
+                        ->map(fn (Player $player) => [
+                            'name' => trim($player->first_name.' '.$player->last_name),
+                            'is_captain' => $player->is_captain,
+                        ])
+                        ->values(),
+                ])
+                ->values(),
+        ]);
+    }
+
+    public function qr(Tournament $tournament, QrCodeService $qrCode): \Illuminate\Http\Response
+    {
+        $this->authorize('view', $tournament);
+
+        return response($qrCode->svg($tournament->registrationUrl(), 512), 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Content-Disposition' => 'inline; filename="qr-inscription.svg"',
         ]);
     }
 
