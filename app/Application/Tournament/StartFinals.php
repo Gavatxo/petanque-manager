@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Tournament;
 
+use App\Events\TournamentUpdated;
 use App\Models\Tournament;
 use Illuminate\Support\Facades\DB;
 
@@ -26,5 +27,7 @@ final class StartFinals
 
             $tournament->update(['current_phase' => 'finals']);
         });
+
+        TournamentUpdated::dispatch($tournament->id);
     }
 }

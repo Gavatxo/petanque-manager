@@ -6,6 +6,7 @@ use App\Http\Controllers\Organizer\RegistrationController as OrganizerRegistrati
 use App\Http\Controllers\Organizer\TeamController;
 use App\Http\Controllers\Organizer\TournamentController;
 use App\Http\Controllers\Public\RegistrationController;
+use App\Http\Controllers\Public\TeamStatusController;
 use Illuminate\Support\Facades\Route;
 
 Route::inertia('/', 'welcome')->name('home');
@@ -17,6 +18,8 @@ Route::post('/i/{tournament:registration_token}', [RegistrationController::class
     ->name('registration.store');
 Route::get('/inscription/confirmee/{registration:follow_token}', [RegistrationController::class, 'confirmed'])
     ->name('registration.confirmed');
+Route::get('/suivi/{registration:follow_token}', [TeamStatusController::class, 'show'])
+    ->name('registration.status');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::inertia('dashboard', 'dashboard')->name('dashboard');

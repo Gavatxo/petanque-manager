@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTournamentEcho } from '@/hooks/use-tournament-echo';
 import type { BreadcrumbItem } from '@/types';
 
 type MatchVM = {
@@ -142,6 +143,8 @@ export default function LiveTournament({
     qualification,
     finals,
 }: Props) {
+    useTournamentEcho(tournament.id);
+
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     const [scoring, setScoring] = useState<MatchVM | null>(null);
     const [scoreA, setScoreA] = useState<number>(tournament.points_target);
