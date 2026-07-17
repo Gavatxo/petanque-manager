@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Organizer;
 
+use App\Application\Tournament\CorrectMatchResult;
 use App\Application\Tournament\Exception\TournamentWorkflowException;
 use App\Application\Tournament\RecordMatchResult;
 use App\Application\Tournament\StartFinals;
@@ -109,6 +110,29 @@ class LiveController extends Controller
         }
 
         return $this->success('Résultat enregistré.');
+    }
+
+    public function correctResult(Request $request, Matchup $matchup, CorrectMatchResult $action): RedirectResponse
+    {
+        $tournament = $matchup->tournament;
+        $this->authorize('update', $tournament);
+
+        $validated = $request->validate([
+            'score_a' => ['required', 'integer', 'min:0', 'max:'.$tournament->points_target],
+            'score_b' => ['required', 'integer', 'min:0', 'max:'.$tournament->points_target],
+        ]);
+
+        try {
+            $result = $action->handle($matchup, $validated['score_a'], $validated['score_b']);
+        } catch (TournamentWorkflowException|InvalidTournamentStateException $e) {
+            return $this->error($e->getMessage());
+        }
+
+        return $this->success(
+            $result['recalculated']
+                ? 'Résultat corrigé — le concours a été recalculé.'
+                : 'Résultat corrigé.',
+        );
     }
 
     public function startFinals(Tournament $tournament, StartFinals $action): RedirectResponse

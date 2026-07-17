@@ -1,5 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Flag, MapPin, Play, Swords, Trophy } from 'lucide-react';
+import { ArrowLeft, Flag, MapPin, Pencil, Play, Swords, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,7 +90,15 @@ function TeamLine({
     );
 }
 
-function MatchCard({ match, onScore }: { match: MatchVM; onScore: (m: MatchVM) => void }) {
+function MatchCard({
+    match,
+    onScore,
+    onCorrect,
+}: {
+    match: MatchVM;
+    onScore: (m: MatchVM) => void;
+    onCorrect: (m: MatchVM) => void;
+}) {
     if (match.status === 'bye') {
         const qualified = match.team_a ?? match.team_b;
 
@@ -132,6 +140,17 @@ function MatchCard({ match, onScore }: { match: MatchVM; onScore: (m: MatchVM) =
                     Saisir le score
                 </Button>
             )}
+            {finished && (
+                <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-muted-foreground h-7 w-full"
+                    onClick={() => onCorrect(match)}
+                >
+                    <Pencil />
+                    Corriger
+                </Button>
+            )}
         </div>
     );
 }
@@ -147,12 +166,21 @@ export default function LiveTournament({
 
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     const [scoring, setScoring] = useState<MatchVM | null>(null);
+    const [mode, setMode] = useState<'record' | 'correct'>('record');
     const [scoreA, setScoreA] = useState<number>(tournament.points_target);
     const [scoreB, setScoreB] = useState<number>(0);
 
     const openScore = (match: MatchVM) => {
+        setMode('record');
         setScoreA(tournament.points_target);
         setScoreB(0);
+        setScoring(match);
+    };
+
+    const openCorrect = (match: MatchVM) => {
+        setMode('correct');
+        setScoreA(match.score_a ?? tournament.points_target);
+        setScoreB(match.score_b ?? 0);
         setScoring(match);
     };
 
@@ -161,12 +189,22 @@ export default function LiveTournament({
             return;
         }
 
-        router.post(
-            `/organizer/matches/${scoring.id}/result`,
-            { score_a: scoreA, score_b: scoreB },
-            { preserveScroll: true, onSuccess: () => setScoring(null) },
-        );
+        const options = { preserveScroll: true, onSuccess: () => setScoring(null) };
+        const payload = { score_a: scoreA, score_b: scoreB };
+
+        if (mode === 'correct') {
+            router.patch(`/organizer/matches/${scoring.id}/result`, payload, options);
+        } else {
+            router.post(`/organizer/matches/${scoring.id}/result`, payload, options);
+        }
     };
+
+    // Le vainqueur change-t-il lors d'une correction ? (déclenche un recalcul)
+    const winnerWouldChange =
+        mode === 'correct' &&
+        scoring !== null &&
+        scoring.winner_team_id !== null &&
+        (scoreA > scoreB ? scoring.team_a_id : scoring.team_b_id) !== scoring.winner_team_id;
 
     const post = (url: string) => router.post(url, {}, { preserveScroll: true });
 
@@ -248,6 +286,7 @@ export default function LiveTournament({
                                                 key={match.id}
                                                 match={match}
                                                 onScore={openScore}
+                                                onCorrect={openCorrect}
                                             />
                                         ))}
                                     </CardContent>
@@ -324,6 +363,7 @@ export default function LiveTournament({
                                                         key={match.id}
                                                         match={match}
                                                         onScore={openScore}
+                                                        onCorrect={openCorrect}
                                                     />
                                                 ))}
                                             </div>
@@ -372,7 +412,9 @@ export default function LiveTournament({
             <Dialog open={scoring !== null} onOpenChange={(open) => !open && setScoring(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Saisir le score</DialogTitle>
+                        <DialogTitle>
+                            {mode === 'correct' ? 'Corriger le score' : 'Saisir le score'}
+                        </DialogTitle>
                         <DialogDescription>
                             Le vainqueur doit atteindre {tournament.points_target} points.
                         </DialogDescription>
@@ -403,11 +445,19 @@ export default function LiveTournament({
                             </div>
                         </div>
                     )}
+                    {winnerWouldChange && (
+                        <p className="rounded-md bg-amber-500/10 p-2 text-center text-sm text-amber-700 dark:text-amber-400">
+                            Le vainqueur change : le concours sera recalculé à partir de cette
+                            partie.
+                        </p>
+                    )}
                     <DialogFooter>
                         <Button variant="ghost" onClick={() => setScoring(null)}>
                             Annuler
                         </Button>
-                        <Button onClick={submitScore}>Valider</Button>
+                        <Button onClick={submitScore}>
+                            {mode === 'correct' ? 'Corriger' : 'Valider'}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
