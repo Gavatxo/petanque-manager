@@ -72,6 +72,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('tournaments.finals.start');
         Route::post('matches/{matchup}/result', [LiveController::class, 'recordResult'])
             ->name('matches.result');
+        Route::patch('matches/{matchup}/result', [LiveController::class, 'correctResult'])
+            ->name('matches.correct');
     });
 });
 
