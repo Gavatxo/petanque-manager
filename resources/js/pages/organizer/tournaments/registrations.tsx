@@ -18,6 +18,7 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import { useTournamentEcho } from '@/hooks/use-tournament-echo';
 import type { BreadcrumbItem } from '@/types';
 
 type RegistrationStatus = 'pending' | 'confirmed' | 'checked_in' | 'cancelled';
@@ -131,6 +132,7 @@ export default function TournamentRegistrations({
     readyToConvert,
 }: Props) {
     const showUrl = `/organizer/tournaments/${tournament.id}`;
+    useTournamentEcho(tournament.id);
 
     const toggleRegistrations = () =>
         router.patch(

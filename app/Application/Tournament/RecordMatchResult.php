@@ -9,6 +9,7 @@ use App\Application\Tournament\Support\KnockoutEngineBuilder;
 use App\Application\Tournament\Support\MatchSynchronizer;
 use App\Application\Tournament\Support\SwissEngineBuilder;
 use App\Enums\TournamentStatus;
+use App\Events\TournamentUpdated;
 use App\Models\Matchup;
 use App\Models\Team;
 use App\Models\Tournament;
@@ -32,6 +33,8 @@ final class RecordMatchResult
 
     public function handle(Matchup $match, int $scoreA, int $scoreB): void
     {
+        $tournamentId = $match->tournament_id;
+
         DB::transaction(function () use ($match, $scoreA, $scoreB): void {
             /** @var Tournament $tournament */
             $tournament = Tournament::query()->whereKey($match->tournament_id)->lockForUpdate()->firstOrFail();
@@ -45,6 +48,9 @@ final class RecordMatchResult
 
             $this->recordKnockout($tournament, $match, $scoreA, $scoreB);
         });
+
+        // Diffuse le changement une fois la transaction validée.
+        TournamentUpdated::dispatch($tournamentId);
     }
 
     private function recordQualification(Tournament $tournament, Matchup $match, int $scoreA, int $scoreB): void

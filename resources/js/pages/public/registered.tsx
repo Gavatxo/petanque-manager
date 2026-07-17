@@ -1,8 +1,10 @@
-import { Head } from '@inertiajs/react';
-import { CircleCheck, Clock, Crown } from 'lucide-react';
+import { Head, Link } from '@inertiajs/react';
+import { CircleCheck, Clock, Crown, Radar } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 type Props = {
     tournamentName: string;
+    followUrl: string;
     registration: {
         team_name: string | null;
         status: string;
@@ -11,7 +13,7 @@ type Props = {
     };
 };
 
-export default function Registered({ tournamentName, registration }: Props) {
+export default function Registered({ tournamentName, followUrl, registration }: Props) {
     return (
         <div className="bg-muted/40 flex min-h-screen flex-col items-center justify-center px-4 py-10">
             <Head title="Demande d’inscription envoyée" />
@@ -62,6 +64,13 @@ export default function Registered({ tournamentName, registration }: Props) {
                         </li>
                     ))}
                 </ul>
+
+                <Button asChild className="w-full">
+                    <Link href={followUrl}>
+                        <Radar />
+                        Suivre mon équipe en direct
+                    </Link>
+                </Button>
 
                 <p className="text-muted-foreground text-xs">
                     Présentez-vous le jour du concours pour valider votre présence.

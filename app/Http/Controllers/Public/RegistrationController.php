@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Public;
 
 use App\Enums\RegistrationStatus;
 use App\Enums\TournamentStatus;
+use App\Events\TournamentUpdated;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Public\RegisterTeamRequest;
 use App\Models\Registration;
@@ -64,6 +65,8 @@ class RegistrationController extends Controller
             return $registration;
         });
 
+        TournamentUpdated::dispatch($tournament->id);
+
         return redirect()->route('registration.confirmed', ['registration' => $registration->follow_token]);
     }
 
@@ -73,6 +76,7 @@ class RegistrationController extends Controller
 
         return Inertia::render('public/registered', [
             'tournamentName' => $registration->tournament->name,
+            'followUrl' => "/suivi/{$registration->follow_token}",
             'registration' => [
                 'team_name' => $registration->team_name,
                 'status' => $registration->status->value,

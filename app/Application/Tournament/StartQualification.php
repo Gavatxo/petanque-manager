@@ -6,6 +6,7 @@ namespace App\Application\Tournament;
 
 use App\Application\Tournament\Exception\TournamentWorkflowException;
 use App\Enums\TournamentStatus;
+use App\Events\TournamentUpdated;
 use App\Models\Tournament;
 use Illuminate\Support\Facades\DB;
 
@@ -42,5 +43,7 @@ final class StartQualification
 
             $this->createMatches->handle($tournament->fresh());
         });
+
+        TournamentUpdated::dispatch($tournament->id);
     }
 }
