@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
-import { MapPin, Radar, Swords, Trophy } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { useTournamentEcho } from '@/hooks/use-tournament-echo';
+import { BODY, C, DISPLAY, MONO } from '@/lib/petanque';
 
 type Live = {
     key: string;
@@ -10,9 +9,18 @@ type Live = {
     court: string | null;
 };
 
+type Previous = {
+    opponent: string | null;
+    court: string | null;
+    my_score: number | null;
+    their_score: number | null;
+    won: boolean;
+};
+
 type Props = {
     tournamentId: number;
     tournamentName: string;
+    club: string | null;
     currentPhase: string | null;
     registrationStatusLabel: string;
     teamName: string;
@@ -20,22 +28,64 @@ type Props = {
         name: string;
         wins: number;
         losses: number;
+        in_progress: number;
         division: string | null;
         final_rank: number | null;
+        round: { current: number; total: number };
         live: Live;
+        previous: Previous | null;
+        rank: { position: number; total: number; remaining: number };
     } | null;
 };
 
-const STATE_STYLES: Record<string, string> = {
-    playing: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
-    covered: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
-    waiting: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
-    done: 'bg-muted text-foreground border-border',
-};
+function ordinal(n: number): string {
+    return n === 1 ? '1re' : `${n}e`;
+}
+
+function TeamBox({ name, mine }: { name: string; mine: boolean }) {
+    return (
+        <div
+            className="flex items-center justify-between rounded-lg px-3.5 py-3"
+            style={{
+                background: mine ? C.greenBg : C.cardAlt,
+                border: `1.5px solid ${mine ? 'oklch(0.52 0.14 152 / 0.4)' : C.border}`,
+            }}
+        >
+            <span
+                className="text-[15px] font-bold"
+                style={{ fontFamily: DISPLAY, color: mine ? C.greenText : C.ink }}
+            >
+                {name}
+            </span>
+            {mine && (
+                <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                    style={{ background: C.green, color: 'white', letterSpacing: '0.06em' }}
+                >
+                    Vous
+                </span>
+            )}
+        </div>
+    );
+}
+
+function StatTile({ value, label, color }: { value: number; label: string; color: string }) {
+    return (
+        <div className="rounded-lg py-3 text-center" style={{ background: C.cardAlt, border: `1px solid ${C.borderSoft}` }}>
+            <div className="text-[26px] leading-none font-bold tabular-nums" style={{ fontFamily: MONO, color }}>
+                {value}
+            </div>
+            <div className="mt-1.5 text-[11px] font-semibold uppercase" style={{ color: C.muted, letterSpacing: '0.05em' }}>
+                {label}
+            </div>
+        </div>
+    );
+}
 
 export default function TeamStatus({
     tournamentId,
     tournamentName,
+    club,
     currentPhase,
     registrationStatusLabel,
     teamName,
@@ -43,79 +93,169 @@ export default function TeamStatus({
 }: Props) {
     useTournamentEcho(tournamentId);
 
+    const playing = team !== null && (team.live.key === 'playing' || team.live.key === 'covered');
+
     return (
-        <div className="bg-muted/40 flex min-h-screen flex-col items-center px-4 py-10">
+        <div className="flex min-h-screen flex-col items-center px-4 py-8" style={{ background: C.bg, fontFamily: BODY }}>
             <Head title={`Suivi — ${teamName}`} />
 
-            <div className="w-full max-w-md space-y-5">
+            <div className="w-full max-w-md space-y-4">
                 <header className="text-center">
-                    <div className="text-muted-foreground flex items-center justify-center gap-1.5 text-xs">
-                        <Radar className="size-3.5" />
-                        Suivi en direct
+                    <div
+                        className="mx-auto mb-3 flex items-center justify-center rounded-full"
+                        style={{ background: C.greenBg, width: 52, height: 52 }}
+                    >
+                        <span className="text-2xl" role="img" aria-label="boule">
+                            🎯
+                        </span>
                     </div>
-                    <h1 className="mt-1 text-2xl font-semibold tracking-tight">{teamName}</h1>
-                    <p className="text-muted-foreground text-sm">{tournamentName}</p>
+                    <h1 className="text-[26px] font-extrabold" style={{ fontFamily: DISPLAY, color: C.ink }}>
+                        {teamName}
+                    </h1>
+                    <p className="mt-1 text-[13px]" style={{ color: C.muted }}>
+                        {tournamentName}
+                        {club ? ` · ${club}` : ''}
+                    </p>
                 </header>
 
                 {team === null ? (
-                    <div className="bg-card text-card-foreground rounded-xl border p-6 text-center shadow-sm">
-                        <Badge variant="secondary">{registrationStatusLabel}</Badge>
-                        <p className="text-muted-foreground mt-3 text-sm">
-                            Votre équipe n’est pas encore engagée dans le concours. Cette page se
-                            mettra à jour automatiquement.
+                    <div
+                        className="rounded-2xl p-6 text-center"
+                        style={{ background: C.card, border: `1px solid ${C.border}` }}
+                    >
+                        <span
+                            className="inline-block rounded-full px-3 py-1 text-xs font-semibold"
+                            style={{ background: C.amberBg, color: C.amberText }}
+                        >
+                            {registrationStatusLabel}
+                        </span>
+                        <p className="mt-3 text-sm" style={{ color: C.muted }}>
+                            Votre équipe n’est pas encore engagée dans le concours. Cette page se met à jour
+                            automatiquement.
                         </p>
                     </div>
                 ) : (
                     <>
-                        <div
-                            className={`rounded-xl border p-6 text-center shadow-sm ${STATE_STYLES[team.live.key] ?? STATE_STYLES.waiting}`}
+                        {/* Match en cours */}
+                        <section
+                            className="rounded-2xl p-5"
+                            style={{
+                                background: C.card,
+                                border: `1.5px solid ${playing ? 'oklch(0.52 0.14 152 / 0.5)' : C.border}`,
+                                boxShadow: playing ? '0 0 0 3px oklch(0.52 0.14 152 / 0.08)' : 'none',
+                            }}
                         >
-                            {team.live.key === 'done' ? (
-                                <Trophy className="mx-auto mb-2 size-8" />
-                            ) : (
-                                <div className="mb-2 flex justify-center">
-                                    <span className="relative flex size-3">
-                                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
-                                        <span className="relative inline-flex size-3 rounded-full bg-current" />
+                            <div className="mb-3.5 flex items-center justify-between">
+                                <span
+                                    className="flex items-center gap-2 text-[13px] font-bold uppercase"
+                                    style={{ fontFamily: DISPLAY, color: playing ? C.greenText : C.muted, letterSpacing: '0.06em' }}
+                                >
+                                    {playing && (
+                                        <span className="relative flex size-2.5">
+                                            <span className="absolute inline-flex size-full animate-ping rounded-full opacity-60" style={{ background: C.green }} />
+                                            <span className="relative inline-flex size-2.5 rounded-full" style={{ background: C.green }} />
+                                        </span>
+                                    )}
+                                    {team.live.label}
+                                </span>
+                                {team.live.court && (
+                                    <span
+                                        className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+                                        style={{ fontFamily: DISPLAY, background: C.primarySoft, color: C.primarySoftText, letterSpacing: '0.04em' }}
+                                    >
+                                        TERRAIN {team.live.court}
                                     </span>
+                                )}
+                            </div>
+
+                            {team.live.opponent ? (
+                                <div className="space-y-2">
+                                    <TeamBox name={team.name} mine />
+                                    <div className="text-center text-[11px] font-bold" style={{ fontFamily: DISPLAY, color: C.muted, letterSpacing: '0.14em' }}>
+                                        VS
+                                    </div>
+                                    <TeamBox name={team.live.opponent} mine={false} />
+                                </div>
+                            ) : (
+                                <p className="py-2 text-center text-sm" style={{ color: C.muted }}>
+                                    {team.live.key === 'done'
+                                        ? 'Concours terminé pour votre équipe.'
+                                        : 'Vous serez bientôt fixés sur votre prochain adversaire.'}
+                                </p>
+                            )}
+                        </section>
+
+                        {/* Parcours */}
+                        <section
+                            className="rounded-2xl p-5"
+                            style={{ background: C.card, border: `1px solid ${C.border}` }}
+                        >
+                            <div className="mb-3.5 flex items-baseline justify-between">
+                                <h2 className="text-[15px] font-bold" style={{ fontFamily: DISPLAY, color: C.ink }}>
+                                    Votre parcours
+                                </h2>
+                                <span className="text-xs font-semibold" style={{ color: C.muted }}>
+                                    Ronde {team.round.current}/{team.round.total}
+                                </span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2.5">
+                                <StatTile value={team.wins} label="Victoires" color={C.green} />
+                                <StatTile value={team.losses} label="Défaites" color={C.accent} />
+                                <StatTile value={team.in_progress} label="En cours" color={C.primary} />
+                            </div>
+
+                            {team.previous && (
+                                <div className="mt-3.5 rounded-lg px-3.5 py-3" style={{ background: C.cardAlt, border: `1px solid ${C.borderSoft}` }}>
+                                    <div className="mb-1 text-[11px] font-bold uppercase" style={{ color: C.muted, letterSpacing: '0.05em' }}>
+                                        Partie précédente
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm" style={{ color: C.ink2 }}>
+                                            vs {team.previous.opponent ?? 'Adversaire'}
+                                            {team.previous.court ? ` · Terrain ${team.previous.court}` : ''}
+                                        </span>
+                                        <span className="flex items-center gap-2">
+                                            <span className="text-[15px] font-bold tabular-nums" style={{ fontFamily: MONO, color: C.ink }}>
+                                                {team.previous.my_score ?? '—'} — {team.previous.their_score ?? '—'}
+                                            </span>
+                                            <span
+                                                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                                                style={{
+                                                    background: team.previous.won ? C.greenBg : C.neutralBg,
+                                                    color: team.previous.won ? C.greenText : C.neutralText,
+                                                    letterSpacing: '0.05em',
+                                                }}
+                                            >
+                                                {team.previous.won ? 'Gagné' : 'Perdu'}
+                                            </span>
+                                        </span>
+                                    </div>
                                 </div>
                             )}
-                            <p className="text-lg font-semibold">{team.live.label}</p>
-                            {team.live.opponent && (
-                                <p className="mt-2 flex items-center justify-center gap-1.5 text-sm">
-                                    <Swords className="size-4" />
-                                    contre {team.live.opponent}
-                                </p>
-                            )}
-                            {team.live.court && (
-                                <p className="mt-1 flex items-center justify-center gap-1.5 text-sm font-medium">
-                                    <MapPin className="size-4" />
-                                    Terrain {team.live.court}
-                                </p>
-                            )}
-                        </div>
+                        </section>
 
-                        <div className="bg-card text-card-foreground grid grid-cols-3 gap-2 rounded-xl border p-4 text-center shadow-sm">
-                            <div>
-                                <p className="text-2xl font-semibold tabular-nums">{team.wins}</p>
-                                <p className="text-muted-foreground text-xs">Victoires</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-semibold tabular-nums">{team.losses}</p>
-                                <p className="text-muted-foreground text-xs">Défaites</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-semibold">{team.division ?? '—'}</p>
-                                <p className="text-muted-foreground text-xs">Tableau</p>
-                            </div>
-                        </div>
+                        {/* Position provisoire */}
+                        {team.final_rank === null && currentPhase !== null && (
+                            <section
+                                className="rounded-2xl px-5 py-4"
+                                style={{ background: C.amberBg, border: `1px solid oklch(0.70 0.18 80 / 0.35)` }}
+                            >
+                                <p className="text-sm" style={{ color: C.amberText }}>
+                                    <span className="font-bold">{ordinal(team.rank.position)} position</span> provisoire
+                                    sur {team.rank.total} équipes
+                                    {team.rank.remaining > 0
+                                        ? ` — encore ${team.rank.remaining} partie(s) à jouer.`
+                                        : ' — qualifications terminées.'}
+                                </p>
+                            </section>
+                        )}
                     </>
                 )}
 
-                <p className="text-muted-foreground text-center text-xs">
+                <p className="pt-1 text-center text-xs" style={{ color: C.muted }}>
                     {currentPhase === null
                         ? 'Le concours n’a pas encore démarré.'
-                        : 'Mise à jour automatique à chaque résultat.'}
+                        : 'La page se met à jour automatiquement.'}
                 </p>
             </div>
         </div>
