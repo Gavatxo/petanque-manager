@@ -1,4 +1,4 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Form, Head, Link, router } from '@inertiajs/react';
 import {
     ArrowLeft,
     Ban,
@@ -7,8 +7,11 @@ import {
     DoorClosed,
     DoorOpen,
     UserCheck,
+    UserPlus,
     UsersRound,
 } from 'lucide-react';
+import { useState } from 'react';
+import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,6 +21,16 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useTournamentEcho } from '@/hooks/use-tournament-echo';
 import type { BreadcrumbItem } from '@/types';
 
@@ -42,11 +55,102 @@ type Props = {
         max_teams: number | null;
     };
     registrationOpen: boolean;
+    teamSize: number;
     registrationQr: string;
     registrations: Registration[];
     teamsCount: number;
     readyToConvert: number;
 };
+
+function AddTeamDialog({
+    tournamentId,
+    teamSize,
+}: {
+    tournamentId: number;
+    teamSize: number;
+}) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <Button variant="secondary" onClick={() => setOpen(true)}>
+                <UserPlus />
+                Ajouter une équipe
+            </Button>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Ajouter une équipe</DialogTitle>
+                    <DialogDescription>
+                        Inscription saisie manuellement (elle sera directement confirmée).
+                    </DialogDescription>
+                </DialogHeader>
+                <Form
+                    action={`/organizer/tournaments/${tournamentId}/registrations`}
+                    method="post"
+                    options={{ preserveScroll: true }}
+                    onSuccess={() => setOpen(false)}
+                    resetOnSuccess
+                    className="space-y-4"
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <div className="grid gap-2">
+                                <Label htmlFor="team_name">
+                                    Nom de l’équipe{' '}
+                                    <span className="text-muted-foreground font-normal">
+                                        (facultatif)
+                                    </span>
+                                </Label>
+                                <Input id="team_name" name="team_name" placeholder="Les Fanny’s" />
+                                <InputError message={errors.team_name} />
+                            </div>
+
+                            {Array.from({ length: teamSize }).map((_, index) => (
+                                <div key={index} className="grid grid-cols-2 gap-2">
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor={`p_${index}_first`}>
+                                            Prénom {index === 0 ? '(capitaine)' : index + 1}
+                                        </Label>
+                                        <Input
+                                            id={`p_${index}_first`}
+                                            name={`players[${index}][first_name]`}
+                                            required
+                                        />
+                                        <InputError message={errors[`players.${index}.first_name`]} />
+                                    </div>
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor={`p_${index}_last`}>Nom</Label>
+                                        <Input
+                                            id={`p_${index}_last`}
+                                            name={`players[${index}][last_name]`}
+                                            required
+                                        />
+                                        <InputError message={errors[`players.${index}.last_name`]} />
+                                    </div>
+                                </div>
+                            ))}
+
+                            <InputError message={errors.players} />
+
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => setOpen(false)}
+                                >
+                                    Annuler
+                                </Button>
+                                <Button type="submit" disabled={processing}>
+                                    Ajouter
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
 
 const STATUS_ORDER: { key: RegistrationStatus; label: string }[] = [
     { key: 'pending', label: 'En attente' },
@@ -126,6 +230,7 @@ function RegistrationRow({ registration }: { registration: Registration }) {
 export default function TournamentRegistrations({
     tournament,
     registrationOpen,
+    teamSize,
     registrationQr,
     registrations,
     teamsCount,
@@ -162,13 +267,18 @@ export default function TournamentRegistrations({
                             Statut du concours : {tournament.status_label}
                         </p>
                     </div>
-                    <Button
-                        variant={registrationOpen ? 'outline' : 'default'}
-                        onClick={toggleRegistrations}
-                    >
-                        {registrationOpen ? <DoorClosed /> : <DoorOpen />}
-                        {registrationOpen ? 'Fermer les inscriptions' : 'Ouvrir les inscriptions'}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <AddTeamDialog tournamentId={tournament.id} teamSize={teamSize} />
+                        <Button
+                            variant={registrationOpen ? 'outline' : 'default'}
+                            onClick={toggleRegistrations}
+                        >
+                            {registrationOpen ? <DoorClosed /> : <DoorOpen />}
+                            {registrationOpen
+                                ? 'Fermer les inscriptions'
+                                : 'Ouvrir les inscriptions'}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid gap-6 lg:grid-cols-3">

@@ -43,6 +43,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // Gestion des inscriptions côté organisateur.
         Route::get('tournaments/{tournament}/registrations', [OrganizerRegistrationController::class, 'index'])
             ->name('tournaments.registrations.index');
+        Route::post('tournaments/{tournament}/registrations', [OrganizerRegistrationController::class, 'store'])
+            ->name('tournaments.registrations.store');
         Route::post('tournaments/{tournament}/registrations/create-teams', [OrganizerRegistrationController::class, 'createTeams'])
             ->name('tournaments.registrations.create-teams');
         Route::patch('registrations/{registration}/confirm', [OrganizerRegistrationController::class, 'confirm'])

@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Organizer;
 use App\Application\Tournament\ConvertRegistrationsToTeams;
 use App\Enums\RegistrationStatus;
 use App\Enums\TournamentStatus;
+use App\Events\TournamentUpdated;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Organizer\StoreManualRegistrationRequest;
 use App\Models\Registration;
 use App\Models\RegistrationPlayer;
 use App\Models\Tournament;
 use App\Services\QrCodeService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -35,6 +38,7 @@ class RegistrationController extends Controller
                 'max_teams' => $tournament->max_teams,
             ],
             'registrationOpen' => $tournament->status === TournamentStatus::RegistrationOpen,
+            'teamSize' => $tournament->team_format->teamSize(),
             'registrationQr' => $qrCode->dataUri($tournament->registrationUrl()),
             'registrations' => $tournament->registrations
                 ->sortBy('id')
@@ -58,6 +62,39 @@ class RegistrationController extends Controller
                 ->whereDoesntHave('team')
                 ->count(),
         ]);
+    }
+
+    /**
+     * Inscription manuelle d'une équipe par l'organisateur (déjà confirmée).
+     */
+    public function store(StoreManualRegistrationRequest $request, Tournament $tournament): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        /** @var array{team_name?: string|null, players: list<array<string, mixed>>} $validated */
+        $validated = $request->validated();
+
+        DB::transaction(function () use ($tournament, $validated): void {
+            $registration = $tournament->registrations()->create([
+                'team_name' => ($validated['team_name'] ?? null) ?: null,
+                'status' => RegistrationStatus::Confirmed,
+                'confirmed_at' => now(),
+            ]);
+
+            foreach ($validated['players'] as $index => $player) {
+                $registration->players()->create([
+                    'first_name' => $player['first_name'],
+                    'last_name' => $player['last_name'],
+                    'phone' => $player['phone'] ?? null,
+                    'license_number' => $player['license_number'] ?? null,
+                    'is_captain' => $index === 0,
+                ]);
+            }
+        });
+
+        TournamentUpdated::dispatch($tournament->id);
+
+        return $this->back('Équipe ajoutée.');
     }
 
     public function confirm(Registration $registration): RedirectResponse
