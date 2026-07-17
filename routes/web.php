@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Organizer\CourtController;
 use App\Http\Controllers\Organizer\LiveController;
 use App\Http\Controllers\Organizer\RegistrationController as OrganizerRegistrationController;
@@ -22,7 +23,7 @@ Route::get('/suivi/{registration:follow_token}', [TeamStatusController::class, '
     ->name('registration.status');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     Route::prefix('organizer')->name('organizer.')->group(function () {
         Route::resource('tournaments', TournamentController::class);
