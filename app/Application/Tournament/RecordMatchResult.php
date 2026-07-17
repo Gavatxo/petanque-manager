@@ -67,7 +67,7 @@ final class RecordMatchResult
             'score_b' => $scoreB,
             'winner_team_id' => $scoreA > $scoreB ? $match->team_a_id : $match->team_b_id,
             'status' => 'finished',
-            'court_id' => null,
+            // On conserve court_id (historique : « Terrain N » sur les parties terminées).
             'result_sequence' => $this->nextSequence($tournament),
         ]);
 

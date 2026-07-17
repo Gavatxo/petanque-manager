@@ -7,6 +7,7 @@ use App\Http\Controllers\Organizer\RegistrationController as OrganizerRegistrati
 use App\Http\Controllers\Organizer\TeamController;
 use App\Http\Controllers\Organizer\TournamentController;
 use App\Http\Controllers\Public\RegistrationController;
+use App\Http\Controllers\Public\ScreenController;
 use App\Http\Controllers\Public\TeamStatusController;
 use Illuminate\Support\Facades\Route;
 
@@ -21,6 +22,8 @@ Route::get('/inscription/confirmee/{registration:follow_token}', [RegistrationCo
     ->name('registration.confirmed');
 Route::get('/suivi/{registration:follow_token}', [TeamStatusController::class, 'show'])
     ->name('registration.status');
+Route::get('/ecran/{tournament:registration_token}', [ScreenController::class, 'show'])
+    ->name('screen');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
