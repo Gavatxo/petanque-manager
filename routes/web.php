@@ -74,6 +74,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('matches.result');
         Route::patch('matches/{matchup}/result', [LiveController::class, 'correctResult'])
             ->name('matches.correct');
+        Route::post('matches/{matchup}/forfeit', [LiveController::class, 'forfeit'])
+            ->name('matches.forfeit');
     });
 });
 
