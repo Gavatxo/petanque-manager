@@ -30,6 +30,8 @@ type MatchVM = {
     team_b: string | null;
     team_a_id: number | null;
     team_b_id: number | null;
+    team_a_number: number | null;
+    team_b_number: number | null;
     court: string | null;
     score_a: number | null;
     score_b: number | null;
@@ -76,16 +78,25 @@ function isActionable(status: string): boolean {
 
 function TeamLine({
     name,
+    number,
     isWinner,
     score,
 }: {
     name: string | null;
+    number: number | null;
     isWinner: boolean;
     score: number | null;
 }) {
     return (
         <div className={`flex items-center justify-between gap-2 ${isWinner ? 'font-semibold' : ''}`}>
-            <span className={name ? '' : 'text-muted-foreground italic'}>{name ?? 'À venir'}</span>
+            <span className={`flex min-w-0 items-center gap-1.5 ${name ? '' : 'text-muted-foreground italic'}`}>
+                {number !== null && (
+                    <span className="bg-muted text-muted-foreground inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-xs font-semibold tabular-nums">
+                        {number}
+                    </span>
+                )}
+                <span className="truncate">{name ?? 'À venir'}</span>
+            </span>
             {score !== null && <span className="tabular-nums">{score}</span>}
         </div>
     );
@@ -120,6 +131,7 @@ function MatchCard({
             <div className="text-sm">
                 <TeamLine
                     name={match.team_a}
+                    number={match.team_a_number}
                     isWinner={finished && match.winner_team_id === match.team_a_id}
                     score={match.score_a}
                 />
@@ -134,6 +146,7 @@ function MatchCard({
                 </div>
                 <TeamLine
                     name={match.team_b}
+                    number={match.team_b_number}
                     isWinner={finished && match.winner_team_id === match.team_b_id}
                     score={match.score_b}
                 />
@@ -350,7 +363,12 @@ export default function LiveTournament({
                                                     key={index}
                                                     className="border-border/60 border-b last:border-0"
                                                 >
-                                                    <td className="px-4 py-1.5">{s.team}</td>
+                                                    <td className="px-4 py-1.5">
+                                                        <span className="bg-muted text-muted-foreground mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-xs font-semibold tabular-nums">
+                                                            {s.seed}
+                                                        </span>
+                                                        {s.team}
+                                                    </td>
                                                     <td className="px-2 py-1.5 text-center font-medium tabular-nums">
                                                         {s.wins}
                                                     </td>
