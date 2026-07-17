@@ -15,8 +15,13 @@ return [
     |
     */
 
+    // SSR désactivé : l'app est une SPA authentifiée rendue côté client
+    // (createRoot). Le SSR n'était pas câblé pour la prod (bundle non committé)
+    // et, à moitié configuré, il empêchait l'hydratation React côté client —
+    // dropdowns, déconnexion et boutons devenaient inertes. À réactiver
+    // seulement avec un vrai bundle `npm run build:ssr` + une entrée ssr.tsx.
     'ssr' => [
-        'enabled' => true,
+        'enabled' => false,
         'url' => 'http://127.0.0.1:13714',
         // 'bundle' => base_path('bootstrap/ssr/ssr.mjs'),
 
