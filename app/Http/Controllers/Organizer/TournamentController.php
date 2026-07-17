@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Organizer;
 
+use App\Enums\RegistrationStatus;
 use App\Enums\TeamFormat;
 use App\Enums\TournamentStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Organizer\StoreTournamentRequest;
 use App\Http\Requests\Organizer\UpdateTournamentRequest;
 use App\Models\Court;
-use App\Models\Player;
-use App\Models\Team;
 use App\Models\Tournament;
 use App\Services\QrCodeService;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -68,25 +67,23 @@ class TournamentController extends Controller
     {
         $this->authorize('view', $tournament);
 
-        $tournament->load(['courts', 'teams.players']);
+        $tournament->load('courts');
+
+        $byStatus = $tournament->registrations()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
         return Inertia::render('organizer/tournaments/show', [
             'tournament' => $this->toDetail($tournament),
             'registrationQr' => $qrCode->dataUri($tournament->registrationUrl()),
-            'teams' => $tournament->teams
-                ->sortBy('seed')
-                ->map(fn (Team $team) => [
-                    'id' => $team->id,
-                    'name' => $team->name,
-                    'seed' => $team->seed,
-                    'players' => $team->players
-                        ->map(fn (Player $player) => [
-                            'name' => trim($player->first_name.' '.$player->last_name),
-                            'is_captain' => $player->is_captain,
-                        ])
-                        ->values(),
-                ])
-                ->values(),
+            'registrationSummary' => [
+                'pending' => (int) $byStatus->get(RegistrationStatus::Pending->value, 0),
+                'confirmed' => (int) $byStatus->get(RegistrationStatus::Confirmed->value, 0),
+                'checked_in' => (int) $byStatus->get(RegistrationStatus::CheckedIn->value, 0),
+                'cancelled' => (int) $byStatus->get(RegistrationStatus::Cancelled->value, 0),
+                'teams' => $tournament->teams()->count(),
+            ],
         ]);
     }
 
@@ -122,6 +119,28 @@ class TournamentController extends Controller
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Concours mis à jour.']);
 
         return redirect()->route('organizer.tournaments.show', $tournament);
+    }
+
+    public function openRegistrations(Tournament $tournament): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $tournament->update(['status' => TournamentStatus::RegistrationOpen]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Inscriptions ouvertes.']);
+
+        return back();
+    }
+
+    public function closeRegistrations(Tournament $tournament): RedirectResponse
+    {
+        $this->authorize('update', $tournament);
+
+        $tournament->update(['status' => TournamentStatus::CheckIn]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Inscriptions fermées — place à la validation des présents.']);
+
+        return back();
     }
 
     public function archive(Tournament $tournament): RedirectResponse

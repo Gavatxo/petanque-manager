@@ -174,8 +174,11 @@ export default function PublicRegister({
                                         className="w-full"
                                         disabled={processing}
                                     >
-                                        S’inscrire au concours
+                                        Envoyer ma demande d’inscription
                                     </Button>
+                                    <p className="text-muted-foreground text-center text-xs">
+                                        Votre demande sera validée par l’organisateur.
+                                    </p>
                                 </>
                             )}
                         </Form>
