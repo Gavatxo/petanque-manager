@@ -1,0 +1,46 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Application\Tournament;
+
+use App\Application\Tournament\Exception\TournamentWorkflowException;
+use App\Enums\TournamentStatus;
+use App\Models\Tournament;
+use Illuminate\Support\Facades\DB;
+
+/**
+ * Lance la phase de qualification : vérifie les prérequis, positionne le
+ * concours en « qualification » et crée les parties de la première ronde.
+ */
+final class StartQualification
+{
+    public function __construct(
+        private readonly CreateQualificationMatches $createMatches,
+    ) {}
+
+    public function handle(Tournament $tournament): void
+    {
+        if ($tournament->current_phase !== null) {
+            throw TournamentWorkflowException::because('Le concours a déjà démarré.');
+        }
+
+        if ($tournament->teams()->count() < 2) {
+            throw TournamentWorkflowException::because('Au moins deux équipes sont nécessaires.');
+        }
+
+        if ($tournament->courts()->count() < 1) {
+            throw TournamentWorkflowException::because('Au moins un terrain est nécessaire.');
+        }
+
+        DB::transaction(function () use ($tournament): void {
+            $tournament->update([
+                'status' => TournamentStatus::Running,
+                'current_phase' => 'qualification',
+                'started_at' => now(),
+            ]);
+
+            $this->createMatches->handle($tournament->fresh());
+        });
+    }
+}
