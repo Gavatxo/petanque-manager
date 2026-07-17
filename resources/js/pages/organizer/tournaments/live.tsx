@@ -1,25 +1,6 @@
-import { Head, Link, router } from '@inertiajs/react';
-import { ArrowLeft, Flag, MapPin, Pencil, Play, Swords, Trophy } from 'lucide-react';
+import { Head, router } from '@inertiajs/react';
+import { Check, CircleDot, Clock, Flag, Play, Plus, Trophy } from 'lucide-react';
 import { useState } from 'react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useTournamentEcho } from '@/hooks/use-tournament-echo';
 import type { BreadcrumbItem } from '@/types';
 
@@ -72,119 +53,101 @@ type Props = {
     finals: DivisionVM[] | null;
 };
 
-function isActionable(status: string): boolean {
-    return status === 'playing' || status === 'ready';
-}
+// Palette « boulodrome » (identité pétanque).
+const C = {
+    bg: 'oklch(0.965 0.008 65)',
+    card: 'oklch(1 0 0)',
+    ink: 'oklch(0.16 0.015 250)',
+    ink2: 'oklch(0.42 0.015 250)',
+    muted: 'oklch(0.52 0.025 55)',
+    border: 'oklch(0.87 0.018 65)',
+    primary: 'oklch(0.42 0.16 240)',
+    accent: 'oklch(0.68 0.22 40)',
+    green: 'oklch(0.52 0.14 152)',
+    greenBg: 'oklch(0.93 0.06 152)',
+    greenText: 'oklch(0.30 0.12 152)',
+    amber: 'oklch(0.70 0.18 80)',
+    amberBg: 'oklch(0.96 0.055 80)',
+    amberText: 'oklch(0.40 0.14 80)',
+    neutral: 'oklch(0.76 0.014 65)',
+    neutralBg: 'oklch(0.94 0.012 65)',
+    neutralText: 'oklch(0.40 0.018 55)',
+};
+const DISPLAY = "'Barlow Condensed', sans-serif";
+const MONO = "'DM Mono', ui-monospace, monospace";
 
-function TeamLine({
-    name,
-    number,
-    isWinner,
-    score,
-}: {
-    name: string | null;
-    number: number | null;
-    isWinner: boolean;
-    score: number | null;
-}) {
+function NumberBadge({ n }: { n: number | null }) {
+    if (n === null) {
+        return null;
+    }
+
     return (
-        <div className={`flex items-center justify-between gap-2 ${isWinner ? 'font-semibold' : ''}`}>
-            <span className={`flex min-w-0 items-center gap-1.5 ${name ? '' : 'text-muted-foreground italic'}`}>
-                {number !== null && (
-                    <span className="bg-muted text-muted-foreground inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-xs font-semibold tabular-nums">
-                        {number}
-                    </span>
-                )}
-                <span className="truncate">{name ?? 'À venir'}</span>
-            </span>
-            {score !== null && <span className="tabular-nums">{score}</span>}
-        </div>
+        <span
+            className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded px-1 text-xs font-bold tabular-nums"
+            style={{ background: C.neutralBg, color: C.muted, fontFamily: MONO }}
+        >
+            {n}
+        </span>
     );
 }
 
-function MatchCard({
-    match,
-    onScore,
-    onCorrect,
-    onForfeit,
+function TeamName({
+    name,
+    number,
+    dim,
 }: {
-    match: MatchVM;
-    onScore: (m: MatchVM) => void;
-    onCorrect: (m: MatchVM) => void;
-    onForfeit: (m: MatchVM) => void;
+    name: string | null;
+    number: number | null;
+    dim?: boolean;
 }) {
-    if (match.status === 'bye') {
-        const qualified = match.team_a ?? match.team_b;
-
-        return (
-            <div className="border-border rounded-lg border border-dashed p-3 text-sm">
-                <p className="text-muted-foreground">Exempt</p>
-                <p className="font-medium">{qualified} qualifié(e)</p>
-            </div>
-        );
-    }
-
-    const finished = match.status === 'finished';
-
     return (
-        <div className="border-border space-y-2 rounded-lg border p-3">
-            <div className="text-sm">
-                <TeamLine
-                    name={match.team_a}
-                    number={match.team_a_number}
-                    isWinner={finished && match.winner_team_id === match.team_a_id}
-                    score={match.score_a}
-                />
-                <div className="text-muted-foreground my-1 flex items-center gap-1 text-xs">
-                    <Swords className="size-3" /> vs
-                    {match.court && (
-                        <span className="ml-auto flex items-center gap-1">
-                            <MapPin className="size-3" />
-                            Terrain {match.court}
-                        </span>
-                    )}
-                </div>
-                <TeamLine
-                    name={match.team_b}
-                    number={match.team_b_number}
-                    isWinner={finished && match.winner_team_id === match.team_b_id}
-                    score={match.score_b}
-                />
-            </div>
-            {isActionable(match.status) && match.team_a && match.team_b && (
-                <div className="flex gap-1">
-                    <Button size="sm" className="flex-1" onClick={() => onScore(match)}>
-                        Saisir le score
-                    </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-muted-foreground"
-                        onClick={() => onForfeit(match)}
-                    >
-                        <Flag />
-                        Forfait
-                    </Button>
-                </div>
-            )}
-            {finished && (
-                <div className="flex items-center gap-2">
-                    {match.is_forfeit && (
-                        <span className="text-muted-foreground text-xs font-medium">
-                            Forfait
-                        </span>
-                    )}
-                    <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-muted-foreground ml-auto h-7"
-                        onClick={() => onCorrect(match)}
-                    >
-                        <Pencil />
-                        Corriger
-                    </Button>
-                </div>
-            )}
+        <span className="flex min-w-0 items-center gap-1.5">
+            <NumberBadge n={number} />
+            <span
+                className="truncate"
+                style={{ color: dim ? C.ink2 : C.ink, fontStyle: name ? 'normal' : 'italic' }}
+            >
+                {name ?? 'Adversaire à venir'}
+            </span>
+        </span>
+    );
+}
+
+function ColumnHeader({
+    label,
+    count,
+    color,
+    bg,
+    accent,
+    icon,
+}: {
+    label: string;
+    count: number;
+    color: string;
+    bg: string;
+    accent: string;
+    icon: React.ReactNode;
+}) {
+    return (
+        <div
+            className="flex shrink-0 items-center gap-2 px-4 py-2.5"
+            style={{ background: bg, borderBottom: `2px solid ${accent}` }}
+        >
+            <span style={{ color }} className="flex items-center">
+                {icon}
+            </span>
+            <span
+                className="flex-1 text-[13px] font-bold uppercase"
+                style={{ fontFamily: DISPLAY, color, letterSpacing: '0.07em' }}
+            >
+                {label}
+            </span>
+            <span
+                className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white tabular-nums"
+                style={{ background: accent }}
+            >
+                {count}
+            </span>
         </div>
     );
 }
@@ -201,8 +164,9 @@ export default function LiveTournament({
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     const [scoring, setScoring] = useState<MatchVM | null>(null);
     const [mode, setMode] = useState<'record' | 'correct'>('record');
-    const [scoreA, setScoreA] = useState<number>(tournament.points_target);
-    const [scoreB, setScoreB] = useState<number>(0);
+    const [scoreA, setScoreA] = useState(tournament.points_target);
+    const [scoreB, setScoreB] = useState(0);
+    const [forfeiting, setForfeiting] = useState<MatchVM | null>(null);
 
     const openScore = (match: MatchVM) => {
         setMode('record');
@@ -210,14 +174,12 @@ export default function LiveTournament({
         setScoreB(0);
         setScoring(match);
     };
-
     const openCorrect = (match: MatchVM) => {
         setMode('correct');
         setScoreA(match.score_a ?? tournament.points_target);
         setScoreB(match.score_b ?? 0);
         setScoring(match);
     };
-
     const submitScore = () => {
         if (!scoring) {
             return;
@@ -232,9 +194,6 @@ export default function LiveTournament({
             router.post(`/organizer/matches/${scoring.id}/result`, payload, options);
         }
     };
-
-    const [forfeiting, setForfeiting] = useState<MatchVM | null>(null);
-    const openForfeit = (match: MatchVM) => setForfeiting(match);
     const submitForfeit = (teamId: number | null) => {
         if (!forfeiting || teamId === null) {
             return;
@@ -246,311 +205,703 @@ export default function LiveTournament({
             { preserveScroll: true, onSuccess: () => setForfeiting(null) },
         );
     };
+    const post = (url: string) => router.post(url, {}, { preserveScroll: true });
 
-    // Le vainqueur change-t-il lors d'une correction ? (déclenche un recalcul)
+    const clamp = (v: number) => Math.max(0, Math.min(tournament.points_target, v));
     const winnerWouldChange =
         mode === 'correct' &&
         scoring !== null &&
         scoring.winner_team_id !== null &&
         (scoreA > scoreB ? scoring.team_a_id : scoring.team_b_id) !== scoring.winner_team_id;
 
-    const post = (url: string) => router.post(url, {}, { preserveScroll: true });
+    const qualMatches = qualification?.rounds.flatMap((r) => r.matches) ?? [];
+    const playing = qualMatches.filter((m) => m.status === 'playing');
+    const waiting = qualMatches.filter((m) => m.status === 'pending' || m.status === 'ready');
+    const done = qualMatches.filter((m) => m.status === 'finished' || m.status === 'bye');
 
     return (
-        <>
+        <div
+            className="flex h-full flex-1 flex-col overflow-hidden"
+            style={{ background: C.bg, fontFamily: "'DM Sans', ui-sans-serif, sans-serif" }}
+        >
             <Head title={`Déroulé — ${tournament.name}`} />
 
-            <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <Button asChild variant="ghost" size="sm" className="mb-1 -ml-2">
-                            <Link href={showUrl}>
-                                <ArrowLeft />
-                                {tournament.name}
-                            </Link>
-                        </Button>
-                        <h1 className="text-2xl font-semibold tracking-tight">Déroulé du concours</h1>
-                        <p className="text-muted-foreground text-sm">
-                            {tournament.team_format_label} · {tournament.qualifying_rounds} parties
-                            qualificatives · {tournament.tableaux_count} tableau(x)
-                        </p>
-                    </div>
-                    <Badge variant="secondary" className="text-sm">
-                        {tournament.status_label}
-                    </Badge>
+            {/* Header */}
+            <header
+                className="flex shrink-0 flex-wrap items-start justify-between gap-4 px-5 py-3"
+                style={{ background: C.card, borderBottom: `1px solid ${C.border}` }}
+            >
+                <div>
+                    <h1
+                        className="text-2xl font-extrabold"
+                        style={{ fontFamily: DISPLAY, color: C.ink, letterSpacing: '0.01em' }}
+                    >
+                        {tournament.name}
+                    </h1>
+                    <p className="text-xs" style={{ color: C.muted }}>
+                        {tournament.team_format_label} · {tournament.qualifying_rounds} parties
+                        qualificatives · {tournament.tableaux_count} tableau(x)
+                    </p>
                 </div>
+                <div className="flex items-center gap-3">
+                    {qualification && (
+                        <span className="text-xs" style={{ color: C.muted }}>
+                            Ronde{' '}
+                            <strong style={{ color: C.ink, fontFamily: MONO }}>
+                                {qualification.currentRound}
+                            </strong>
+                            <span style={{ color: C.neutral }}>
+                                {' '}
+                                / {tournament.qualifying_rounds}
+                            </span>
+                        </span>
+                    )}
+                    {tournament.current_phase !== null &&
+                        tournament.current_phase !== 'completed' && (
+                            <span
+                                className="inline-flex items-center gap-1.5 rounded-full px-3 py-1"
+                                style={{ background: C.greenBg }}
+                            >
+                                <span
+                                    className="size-1.5 animate-ping rounded-full"
+                                    style={{ background: C.green }}
+                                />
+                                <span
+                                    className="text-[11px] font-bold uppercase"
+                                    style={{ color: C.greenText, letterSpacing: '0.05em' }}
+                                >
+                                    En direct
+                                </span>
+                            </span>
+                        )}
+                    {qualification?.complete && tournament.current_phase === 'qualification' && (
+                        <button
+                            onClick={() => post(`${showUrl}/finals/start`)}
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-semibold text-white"
+                            style={{ background: C.accent }}
+                        >
+                            <Flag className="size-3.5" />
+                            Lancer les phases finales
+                        </button>
+                    )}
+                </div>
+            </header>
 
-                {/* Étape 1 — lancement */}
-                {tournament.current_phase === null && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Prêt à lancer&nbsp;?</CardTitle>
-                            <CardDescription>
-                                {counts.teams} équipe(s) officielle(s) · {counts.courts} terrain(s).
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                            {!canStartQualification && (
-                                <p className="text-muted-foreground text-sm">
-                                    Il faut au moins 2 équipes officielles et 1 terrain. Validez les
-                                    présences puis créez les équipes depuis les inscriptions.
+            {/* Setup */}
+            {tournament.current_phase === null && (
+                <div className="flex flex-1 items-center justify-center p-6">
+                    <div
+                        className="w-full max-w-md rounded-2xl p-8 text-center"
+                        style={{ background: C.card, border: `1px solid ${C.border}` }}
+                    >
+                        <div
+                            className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full"
+                            style={{ background: C.greenBg, color: C.green }}
+                        >
+                            <Play className="size-6" />
+                        </div>
+                        <h2
+                            className="text-xl font-extrabold"
+                            style={{ fontFamily: DISPLAY, color: C.ink }}
+                        >
+                            Prêt à lancer&nbsp;?
+                        </h2>
+                        <p className="mt-1 text-sm" style={{ color: C.muted }}>
+                            {counts.teams} équipe(s) officielle(s) · {counts.courts} terrain(s).
+                        </p>
+                        {!canStartQualification && (
+                            <p className="mt-3 text-sm" style={{ color: C.muted }}>
+                                Il faut au moins 2 équipes officielles et 1 terrain. Validez les
+                                présences puis créez les équipes depuis les inscriptions.
+                            </p>
+                        )}
+                        <button
+                            disabled={!canStartQualification}
+                            onClick={() => post(`${showUrl}/qualification/start`)}
+                            className="mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-bold text-white disabled:opacity-40"
+                            style={{ background: C.accent }}
+                        >
+                            <Play className="size-4" />
+                            Lancer les qualifications
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Kanban qualifications */}
+            {qualification && (
+                <div className="grid flex-1 overflow-hidden lg:grid-cols-[2fr_1.35fr_1.65fr]">
+                    {/* EN COURS */}
+                    <div
+                        className="flex flex-col overflow-hidden"
+                        style={{ borderRight: `1px solid ${C.border}` }}
+                    >
+                        <ColumnHeader
+                            label="En cours"
+                            count={playing.length}
+                            color={C.greenText}
+                            bg={C.greenBg}
+                            accent={C.green}
+                            icon={<CircleDot className="size-3.5" />}
+                        />
+                        <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+                            {playing.map((m) => (
+                                <div
+                                    key={m.id}
+                                    className="overflow-hidden rounded-xl"
+                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                >
+                                    <div
+                                        className="flex items-center gap-1.5 px-3 py-1.5"
+                                        style={{ background: C.primary }}
+                                    >
+                                        <span
+                                            className="text-xs font-bold text-white uppercase"
+                                            style={{ fontFamily: DISPLAY, letterSpacing: '0.07em' }}
+                                        >
+                                            Terrain {m.court}
+                                        </span>
+                                    </div>
+                                    <div className="p-3">
+                                        <div className="text-[15px] font-semibold">
+                                            <TeamName name={m.team_a} number={m.team_a_number} />
+                                        </div>
+                                        <div className="flex items-center gap-1.5 py-1">
+                                            <div
+                                                className="h-px flex-1"
+                                                style={{ background: C.border }}
+                                            />
+                                            <span
+                                                className="text-[10px] font-bold"
+                                                style={{ color: C.muted }}
+                                            >
+                                                VS
+                                            </span>
+                                            <div
+                                                className="h-px flex-1"
+                                                style={{ background: C.border }}
+                                            />
+                                        </div>
+                                        <div className="text-[15px] font-semibold">
+                                            <TeamName name={m.team_b} number={m.team_b_number} />
+                                        </div>
+                                        <button
+                                            onClick={() => openScore(m)}
+                                            className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white"
+                                            style={{ background: C.accent }}
+                                        >
+                                            <Plus className="size-3.5" />
+                                            Saisir le score
+                                        </button>
+                                        <button
+                                            onClick={() => setForfeiting(m)}
+                                            className="mt-1.5 flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium"
+                                            style={{ color: C.muted }}
+                                        >
+                                            <Flag className="size-3" />
+                                            Déclarer forfait
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {playing.length === 0 && (
+                                <p className="p-4 text-center text-sm" style={{ color: C.muted }}>
+                                    Aucune partie en cours.
                                 </p>
                             )}
-                            <Button
-                                disabled={!canStartQualification}
-                                onClick={() => post(`${showUrl}/qualification/start`)}
-                            >
-                                <Play />
-                                Lancer les qualifications
-                            </Button>
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Qualifications */}
-                {qualification && (
-                    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold">Qualifications</h2>
-                                {qualification.complete &&
-                                    tournament.current_phase === 'qualification' && (
-                                        <Button onClick={() => post(`${showUrl}/finals/start`)}>
-                                            <Flag />
-                                            Lancer les phases finales
-                                        </Button>
-                                    )}
-                            </div>
-                            {qualification.rounds.map((round) => (
-                                <Card key={round.round}>
-                                    <CardHeader>
-                                        <CardTitle className="text-base">
-                                            Ronde {round.round}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="grid gap-3 sm:grid-cols-2">
-                                        {round.matches.map((match) => (
-                                            <MatchCard
-                                                key={match.id}
-                                                match={match}
-                                                onScore={openScore}
-                                                onCorrect={openCorrect}
-                                                onForfeit={openForfeit}
-                                            />
-                                        ))}
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
-
-                        <div>
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="text-base">Classement</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <table className="w-full text-sm">
-                                        <thead>
-                                            <tr className="text-muted-foreground border-border border-b text-left text-xs">
-                                                <th className="px-4 py-2">Équipe</th>
-                                                <th className="px-2 py-2 text-center">V</th>
-                                                <th className="px-4 py-2 text-center">D</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {qualification.standings.map((s, index) => (
-                                                <tr
-                                                    key={index}
-                                                    className="border-border/60 border-b last:border-0"
-                                                >
-                                                    <td className="px-4 py-1.5">
-                                                        <span className="bg-muted text-muted-foreground mr-2 inline-flex h-5 min-w-5 items-center justify-center rounded px-1 text-xs font-semibold tabular-nums">
-                                                            {s.seed}
-                                                        </span>
-                                                        {s.team}
-                                                    </td>
-                                                    <td className="px-2 py-1.5 text-center font-medium tabular-nums">
-                                                        {s.wins}
-                                                    </td>
-                                                    <td className="text-muted-foreground px-4 py-1.5 text-center tabular-nums">
-                                                        {s.losses}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </CardContent>
-                            </Card>
                         </div>
                     </div>
-                )}
 
-                {/* Phases finales */}
-                {finals && (
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-semibold">Phases finales</h2>
-                        {finals.map((division) => (
-                            <Card key={division.label}>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Trophy className="size-4" />
-                                        Tableau {division.label}
-                                        {division.complete && (
-                                            <Badge variant="default" className="ml-2">
-                                                Terminé
-                                            </Badge>
-                                        )}
-                                    </CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="flex gap-4 overflow-x-auto pb-2">
-                                        {division.rounds.map((round) => (
+                    {/* EN ATTENTE */}
+                    <div
+                        className="flex flex-col overflow-hidden"
+                        style={{ borderRight: `1px solid ${C.border}` }}
+                    >
+                        <ColumnHeader
+                            label="En attente"
+                            count={waiting.length}
+                            color={C.amberText}
+                            bg={C.amberBg}
+                            accent={C.amber}
+                            icon={<Clock className="size-3.5" />}
+                        />
+                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+                            {waiting.map((m) => (
+                                <div
+                                    key={m.id}
+                                    className="rounded-lg p-3"
+                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                >
+                                    <span
+                                        className="mb-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
+                                        style={{ background: C.amberBg, color: C.amberText }}
+                                    >
+                                        {m.team_b === null
+                                            ? 'En attente d’un adversaire'
+                                            : 'Couverte · terrain attendu'}
+                                    </span>
+                                    <div className="text-[13px] font-semibold">
+                                        <TeamName name={m.team_a} number={m.team_a_number} />
+                                    </div>
+                                    <div
+                                        className="py-0.5 text-[10px] italic"
+                                        style={{ color: C.muted }}
+                                    >
+                                        — vs —
+                                    </div>
+                                    <div className="text-[13px]">
+                                        <TeamName name={m.team_b} number={m.team_b_number} dim />
+                                    </div>
+                                </div>
+                            ))}
+                            {waiting.length === 0 && (
+                                <p className="p-4 text-center text-sm" style={{ color: C.muted }}>
+                                    Rien en attente.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* TERMINÉS + classement */}
+                    <div className="flex flex-col overflow-hidden">
+                        <ColumnHeader
+                            label="Terminés"
+                            count={done.length}
+                            color={C.neutralText}
+                            bg={C.neutralBg}
+                            accent={C.neutral}
+                            icon={<Check className="size-3.5" />}
+                        />
+                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+                            {done.map((m) => (
+                                <div
+                                    key={m.id}
+                                    className="rounded-lg p-3"
+                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                >
+                                    <div
+                                        className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase"
+                                        style={{ color: C.muted }}
+                                    >
+                                        <span>{m.court ? `Terrain ${m.court}` : 'Exempt'}</span>
+                                        {m.is_forfeit && <span>Forfait</span>}
+                                        <button
+                                            onClick={() => openCorrect(m)}
+                                            className="underline-offset-2 hover:underline"
+                                        >
+                                            Corriger
+                                        </button>
+                                    </div>
+                                    <ScoreRow
+                                        name={m.team_a}
+                                        number={m.team_a_number}
+                                        score={m.score_a}
+                                        win={m.winner_team_id === m.team_a_id}
+                                    />
+                                    <ScoreRow
+                                        name={m.team_b}
+                                        number={m.team_b_number}
+                                        score={m.score_b}
+                                        win={m.winner_team_id === m.team_b_id}
+                                    />
+                                </div>
+                            ))}
+
+                            {qualification.standings.length > 0 && (
+                                <div
+                                    className="mt-0.5 overflow-hidden rounded-lg"
+                                    style={{
+                                        background: 'oklch(0.975 0.005 65)',
+                                        border: `1px solid ${C.border}`,
+                                    }}
+                                >
+                                    <div
+                                        className="flex items-center gap-1.5 px-3 py-2"
+                                        style={{ borderBottom: `1px solid ${C.border}` }}
+                                    >
+                                        <Trophy className="size-3" style={{ color: C.amber }} />
+                                        <span
+                                            className="text-xs font-bold uppercase"
+                                            style={{ fontFamily: DISPLAY, color: C.neutralText }}
+                                        >
+                                            Classement provisoire
+                                        </span>
+                                    </div>
+                                    <div className="py-1">
+                                        {qualification.standings.map((s, i) => (
                                             <div
-                                                key={round.round}
-                                                className="w-56 shrink-0 space-y-3"
+                                                key={i}
+                                                className="flex items-center justify-between px-3 py-1 text-xs"
                                             >
-                                                <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-                                                    {round.label}
-                                                </p>
-                                                {round.matches.map((match) => (
-                                                    <MatchCard
-                                                        key={match.id}
-                                                        match={match}
-                                                        onScore={openScore}
-                                                        onCorrect={openCorrect}
-                                                        onForfeit={openForfeit}
-                                                    />
-                                                ))}
+                                                <span className="flex min-w-0 items-center gap-1.5">
+                                                    <NumberBadge n={s.seed} />
+                                                    <span
+                                                        className="truncate"
+                                                        style={{ color: C.ink }}
+                                                    >
+                                                        {s.team}
+                                                    </span>
+                                                </span>
+                                                <span
+                                                    className="flex shrink-0 gap-2"
+                                                    style={{ fontFamily: MONO }}
+                                                >
+                                                    <span style={{ color: C.greenText }}>
+                                                        {s.wins}V
+                                                    </span>
+                                                    <span style={{ color: C.muted }}>
+                                                        {s.losses}D
+                                                    </span>
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
-
-                                    {division.complete && (
-                                        <div className="bg-muted/40 rounded-lg p-3">
-                                            <p className="mb-2 text-sm font-medium">
-                                                Classement final
-                                            </p>
-                                            <ol className="space-y-1 text-sm">
-                                                {division.ranking.map((r, index) => (
-                                                    <li
-                                                        key={index}
-                                                        className="flex items-center gap-2"
-                                                    >
-                                                        <span className="text-muted-foreground w-6 tabular-nums">
-                                                            {r.position ?? '—'}
-                                                        </span>
-                                                        <span
-                                                            className={
-                                                                r.position === 1
-                                                                    ? 'font-semibold'
-                                                                    : ''
-                                                            }
-                                                        >
-                                                            {r.team}
-                                                        </span>
-                                                        {r.position === 1 && (
-                                                            <Trophy className="size-3.5 text-amber-500" />
-                                                        )}
-                                                    </li>
-                                                ))}
-                                            </ol>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            {/* Saisie du score */}
-            <Dialog open={scoring !== null} onOpenChange={(open) => !open && setScoring(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>
-                            {mode === 'correct' ? 'Corriger le score' : 'Saisir le score'}
-                        </DialogTitle>
-                        <DialogDescription>
-                            Le vainqueur doit atteindre {tournament.points_target} points.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {scoring && (
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="score_a">{scoring.team_a}</Label>
-                                <Input
-                                    id="score_a"
-                                    type="number"
-                                    min={0}
-                                    max={tournament.points_target}
-                                    value={scoreA}
-                                    onChange={(e) => setScoreA(Number(e.target.value))}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="score_b">{scoring.team_b}</Label>
-                                <Input
-                                    id="score_b"
-                                    type="number"
-                                    min={0}
-                                    max={tournament.points_target}
-                                    value={scoreB}
-                                    onChange={(e) => setScoreB(Number(e.target.value))}
-                                />
-                            </div>
+                                </div>
+                            )}
                         </div>
-                    )}
-                    {winnerWouldChange && (
-                        <p className="rounded-md bg-amber-500/10 p-2 text-center text-sm text-amber-700 dark:text-amber-400">
-                            Le vainqueur change : le concours sera recalculé à partir de cette
-                            partie.
-                        </p>
-                    )}
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setScoring(null)}>
-                            Annuler
-                        </Button>
-                        <Button onClick={submitScore}>
-                            {mode === 'correct' ? 'Corriger' : 'Valider'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    </div>
+                </div>
+            )}
 
-            {/* Forfait */}
-            <Dialog open={forfeiting !== null} onOpenChange={(open) => !open && setForfeiting(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Déclarer un forfait</DialogTitle>
-                        <DialogDescription>
+            {/* Phases finales */}
+            {finals && (
+                <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                    {finals.map((division) => (
+                        <div
+                            key={division.label}
+                            className="rounded-xl p-4"
+                            style={{ background: C.card, border: `1px solid ${C.border}` }}
+                        >
+                            <div className="mb-3 flex items-center gap-2">
+                                <Trophy className="size-4" style={{ color: C.accent }} />
+                                <span
+                                    className="text-lg font-extrabold"
+                                    style={{ fontFamily: DISPLAY, color: C.ink }}
+                                >
+                                    Tableau {division.label}
+                                </span>
+                                {division.complete && (
+                                    <span
+                                        className="rounded-full px-2 py-0.5 text-[10px] font-bold text-white uppercase"
+                                        style={{ background: C.green }}
+                                    >
+                                        Terminé
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex gap-4 overflow-x-auto pb-2">
+                                {division.rounds.map((round) => (
+                                    <div key={round.round} className="w-56 shrink-0 space-y-2">
+                                        <p
+                                            className="text-xs font-bold uppercase"
+                                            style={{ fontFamily: DISPLAY, color: C.muted }}
+                                        >
+                                            {round.label}
+                                        </p>
+                                        {round.matches.map((m) =>
+                                            m.status === 'bye' ? (
+                                                <div
+                                                    key={m.id}
+                                                    className="rounded-lg border border-dashed p-3 text-sm"
+                                                    style={{ borderColor: C.border, color: C.muted }}
+                                                >
+                                                    {m.team_a ?? m.team_b} qualifié(e)
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    key={m.id}
+                                                    className="space-y-1 rounded-lg p-3"
+                                                    style={{ border: `1px solid ${C.border}` }}
+                                                >
+                                                    <ScoreRow
+                                                        name={m.team_a}
+                                                        number={m.team_a_number}
+                                                        score={m.score_a}
+                                                        win={m.winner_team_id === m.team_a_id}
+                                                    />
+                                                    <ScoreRow
+                                                        name={m.team_b}
+                                                        number={m.team_b_number}
+                                                        score={m.score_b}
+                                                        win={m.winner_team_id === m.team_b_id}
+                                                    />
+                                                    {m.status === 'ready' &&
+                                                        m.team_a &&
+                                                        m.team_b && (
+                                                            <button
+                                                                onClick={() => openScore(m)}
+                                                                className="mt-1 w-full rounded-md py-1.5 text-xs font-bold text-white"
+                                                                style={{ background: C.accent }}
+                                                            >
+                                                                Saisir le score
+                                                            </button>
+                                                        )}
+                                                    {m.status === 'finished' && (
+                                                        <button
+                                                            onClick={() => openCorrect(m)}
+                                                            className="text-[10px] uppercase"
+                                                            style={{ color: C.muted }}
+                                                        >
+                                                            Corriger
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ),
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {division.complete && (
+                                <div
+                                    className="mt-4 rounded-lg p-3"
+                                    style={{ background: C.neutralBg }}
+                                >
+                                    <p
+                                        className="mb-2 text-sm font-bold"
+                                        style={{ fontFamily: DISPLAY, color: C.ink }}
+                                    >
+                                        Classement final
+                                    </p>
+                                    <ol className="space-y-1 text-sm">
+                                        {division.ranking.map((r, i) => (
+                                            <li key={i} className="flex items-center gap-2">
+                                                <span
+                                                    className="w-6 tabular-nums"
+                                                    style={{ color: C.muted, fontFamily: MONO }}
+                                                >
+                                                    {r.position ?? '—'}
+                                                </span>
+                                                <span
+                                                    style={{
+                                                        fontWeight: r.position === 1 ? 700 : 400,
+                                                        color: C.ink,
+                                                    }}
+                                                >
+                                                    {r.team}
+                                                </span>
+                                                {r.position === 1 && (
+                                                    <Trophy
+                                                        className="size-3.5"
+                                                        style={{ color: C.accent }}
+                                                    />
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Modale de saisie / correction */}
+            {scoring && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-5"
+                    style={{ background: 'oklch(0 0 0 / 0.52)', backdropFilter: 'blur(3px)' }}
+                    onClick={(e) => e.target === e.currentTarget && setScoring(null)}
+                >
+                    <div
+                        className="w-full max-w-md overflow-hidden rounded-2xl"
+                        style={{ background: C.card }}
+                    >
+                        <div
+                            className="px-6 pt-5 pb-4"
+                            style={{ borderBottom: `1px solid ${C.border}` }}
+                        >
+                            <h2
+                                className="text-xl font-extrabold"
+                                style={{ fontFamily: DISPLAY, color: C.ink }}
+                            >
+                                {mode === 'correct' ? 'Corriger le score' : 'Saisir le score'}
+                            </h2>
+                            <p className="text-xs" style={{ color: C.muted }}>
+                                Le vainqueur atteint {tournament.points_target} points.
+                            </p>
+                        </div>
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3 px-6 py-6">
+                            <Stepper
+                                name={scoring.team_a}
+                                number={scoring.team_a_number}
+                                value={scoreA}
+                                onChange={(v) => setScoreA(clamp(v))}
+                            />
+                            <div
+                                className="pt-11 text-center text-xl font-bold"
+                                style={{ fontFamily: DISPLAY, color: C.neutral }}
+                            >
+                                VS
+                            </div>
+                            <Stepper
+                                name={scoring.team_b}
+                                number={scoring.team_b_number}
+                                value={scoreB}
+                                onChange={(v) => setScoreB(clamp(v))}
+                            />
+                        </div>
+                        {winnerWouldChange && (
+                            <p
+                                className="mx-6 mb-2 rounded-md p-2 text-center text-sm"
+                                style={{ background: C.amberBg, color: C.amberText }}
+                            >
+                                Le vainqueur change : le concours sera recalculé.
+                            </p>
+                        )}
+                        <div className="flex gap-2.5 px-6 pb-5">
+                            <button
+                                onClick={() => setScoring(null)}
+                                className="flex-1 rounded-lg py-3 text-sm font-semibold"
+                                style={{ background: C.neutralBg, color: C.ink }}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={submitScore}
+                                disabled={scoreA === scoreB}
+                                className="flex flex-[2] items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white disabled:opacity-40"
+                                style={{ background: C.accent }}
+                            >
+                                <Check className="size-4" />
+                                {mode === 'correct' ? 'Corriger' : 'Valider le score'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modale forfait */}
+            {forfeiting && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-5"
+                    style={{ background: 'oklch(0 0 0 / 0.52)', backdropFilter: 'blur(3px)' }}
+                    onClick={(e) => e.target === e.currentTarget && setForfeiting(null)}
+                >
+                    <div
+                        className="w-full max-w-sm overflow-hidden rounded-2xl p-6"
+                        style={{ background: C.card }}
+                    >
+                        <h2
+                            className="text-xl font-extrabold"
+                            style={{ fontFamily: DISPLAY, color: C.ink }}
+                        >
+                            Déclarer un forfait
+                        </h2>
+                        <p className="mb-4 text-xs" style={{ color: C.muted }}>
                             Quelle équipe déclare forfait&nbsp;? L’adversaire l’emporte{' '}
                             {tournament.points_target}-0.
-                        </DialogDescription>
-                    </DialogHeader>
-                    {forfeiting && (
+                        </p>
                         <div className="grid gap-2">
-                            <Button
-                                variant="outline"
+                            <button
                                 onClick={() => submitForfeit(forfeiting.team_a_id)}
+                                className="rounded-lg py-2.5 text-sm font-semibold"
+                                style={{ border: `1px solid ${C.border}`, color: C.ink }}
                             >
                                 {forfeiting.team_a} déclare forfait
-                            </Button>
-                            <Button
-                                variant="outline"
+                            </button>
+                            <button
                                 onClick={() => submitForfeit(forfeiting.team_b_id)}
+                                className="rounded-lg py-2.5 text-sm font-semibold"
+                                style={{ border: `1px solid ${C.border}`, color: C.ink }}
                             >
                                 {forfeiting.team_b} déclare forfait
-                            </Button>
+                            </button>
+                            <button
+                                onClick={() => setForfeiting(null)}
+                                className="py-2 text-sm"
+                                style={{ color: C.muted }}
+                            >
+                                Annuler
+                            </button>
                         </div>
-                    )}
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setForfeiting(null)}>
-                            Annuler
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function ScoreRow({
+    name,
+    number,
+    score,
+    win,
+}: {
+    name: string | null;
+    number: number | null;
+    score: number | null;
+    win: boolean;
+}) {
+    return (
+        <div className="flex items-baseline justify-between gap-2">
+            <span
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-[13px]"
+                style={{ fontWeight: win ? 700 : 400 }}
+            >
+                <NumberBadge n={number} />
+                <span className="truncate" style={{ color: win ? C.greenText : C.ink }}>
+                    {name}
+                </span>
+                {win && <Check className="size-3.5 shrink-0" style={{ color: C.green }} />}
+            </span>
+            {score !== null && (
+                <span
+                    className="shrink-0 text-base tabular-nums"
+                    style={{ fontFamily: MONO, color: C.ink, fontWeight: win ? 500 : 400 }}
+                >
+                    {score}
+                </span>
+            )}
+        </div>
+    );
+}
+
+function Stepper({
+    name,
+    number,
+    value,
+    onChange,
+}: {
+    name: string | null;
+    number: number | null;
+    value: number;
+    onChange: (v: number) => void;
+}) {
+    const btn =
+        'flex size-10 items-center justify-center rounded-full text-2xl leading-none font-light';
+
+    return (
+        <div className="flex flex-col items-center gap-2.5">
+            <div
+                className="flex items-center gap-1 text-center text-[13px] font-semibold"
+                style={{ color: C.ink }}
+            >
+                <NumberBadge n={number} />
+                <span className="line-clamp-2">{name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => onChange(value - 1)}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    −
+                </button>
+                <span
+                    className="min-w-[48px] text-center text-4xl tabular-nums"
+                    style={{ fontFamily: MONO, color: C.ink }}
+                >
+                    {value}
+                </span>
+                <button
+                    onClick={() => onChange(value + 1)}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    +
+                </button>
+            </div>
+        </div>
     );
 }
 
