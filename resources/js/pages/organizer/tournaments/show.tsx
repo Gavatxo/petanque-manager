@@ -11,6 +11,7 @@ import {
     LayoutGrid,
     MapPin,
     Pencil,
+    Play,
     QrCode,
     Target,
     Users,
@@ -123,10 +124,16 @@ export default function ShowTournament({
                                 Archiver
                             </Button>
                         )}
-                        <Button asChild>
+                        <Button asChild variant="secondary">
                             <Link href={`${showUrl}/edit`}>
                                 <Pencil />
                                 Gérer
+                            </Link>
+                        </Button>
+                        <Button asChild>
+                            <Link href={`${showUrl}/live`}>
+                                <Play />
+                                Piloter
                             </Link>
                         </Button>
                     </div>

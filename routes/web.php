@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Organizer\CourtController;
+use App\Http\Controllers\Organizer\LiveController;
 use App\Http\Controllers\Organizer\RegistrationController as OrganizerRegistrationController;
 use App\Http\Controllers\Organizer\TeamController;
 use App\Http\Controllers\Organizer\TournamentController;
@@ -56,6 +57,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('courts/{court}', [CourtController::class, 'destroy'])->name('courts.destroy');
 
         Route::delete('teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
+
+        // Pilotage du déroulé (lancement, résultats, finales).
+        Route::get('tournaments/{tournament}/live', [LiveController::class, 'show'])
+            ->name('tournaments.live');
+        Route::post('tournaments/{tournament}/qualification/start', [LiveController::class, 'startQualification'])
+            ->name('tournaments.qualification.start');
+        Route::post('tournaments/{tournament}/finals/start', [LiveController::class, 'startFinals'])
+            ->name('tournaments.finals.start');
+        Route::post('matches/{matchup}/result', [LiveController::class, 'recordResult'])
+            ->name('matches.result');
     });
 });
 
