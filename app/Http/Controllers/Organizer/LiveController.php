@@ -202,6 +202,8 @@ class LiveController extends Controller
             'round' => $m->round,
             'team_a' => $m->team_a_id !== null ? ($names[$m->team_a_id]['name'] ?? null) : null,
             'team_b' => $m->team_b_id !== null ? ($names[$m->team_b_id]['name'] ?? null) : null,
+            'team_a_number' => $m->team_a_id !== null ? ($names[$m->team_a_id]['seed'] ?? null) : null,
+            'team_b_number' => $m->team_b_id !== null ? ($names[$m->team_b_id]['seed'] ?? null) : null,
             'court' => $m->court_id !== null ? ($courts[$m->court_id] ?? null) : null,
             'score_a' => $m->score_a,
             'score_b' => $m->score_b,
