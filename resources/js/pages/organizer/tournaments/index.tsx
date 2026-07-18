@@ -31,13 +31,14 @@ function TournamentCard({ tournament }: { tournament: TournamentListItem }) {
     const showUrl = `/organizer/tournaments/${tournament.id}`;
 
     return (
-        <Card className="flex flex-col">
+        <Card className="hover:border-primary/50 relative flex flex-col transition-colors hover:shadow-md">
             <CardHeader>
                 <div className="flex items-start justify-between gap-3">
                     <CardTitle className="text-base leading-tight">
                         <Link
                             href={showUrl}
-                            className="hover:text-primary transition-colors"
+                            className="hover:text-primary transition-colors after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none"
+                            aria-label={`Ouvrir ${tournament.name}`}
                         >
                             {tournament.name}
                         </Link>
@@ -74,7 +75,7 @@ function TournamentCard({ tournament }: { tournament: TournamentListItem }) {
                 </div>
             </CardContent>
 
-            <CardFooter className="gap-2">
+            <CardFooter className="relative z-10 gap-2">
                 <Button asChild variant="secondary" size="sm">
                     <Link href={`${showUrl}/edit`}>
                         <Pencil />
