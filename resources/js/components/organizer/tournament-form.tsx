@@ -1,4 +1,6 @@
 import { Form, Link } from '@inertiajs/react';
+import { Info } from 'lucide-react';
+import type { ReactNode } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +13,41 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import type { SelectOption } from '@/types';
+
+/** Label accompagné d'une icône ⓘ dont le tooltip explique le champ. */
+function LabelWithHint({
+    htmlFor,
+    label,
+    hint,
+}: {
+    htmlFor: string;
+    label: string;
+    hint: ReactNode;
+}) {
+    return (
+        <div className="flex items-center gap-1.5">
+            <Label htmlFor={htmlFor}>{label}</Label>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label={`À quoi sert « ${label} » ?`}
+                        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring rounded-full focus:outline-none focus-visible:ring-2"
+                    >
+                        <Info className="size-3.5" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-pretty">{hint}</TooltipContent>
+            </Tooltip>
+        </div>
+    );
+}
 
 export type TournamentFormValues = {
     name: string;
@@ -156,7 +192,22 @@ export function TournamentForm({
 
                         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="grid gap-2">
-                                <Label htmlFor="qualifying_rounds">Parties qualif.</Label>
+                                <LabelWithHint
+                                    htmlFor="qualifying_rounds"
+                                    label="Parties qualif."
+                                    hint={
+                                        <>
+                                            Nombre de manches de brassage jouées avant les phases
+                                            finales. À chaque ronde, une équipe affronte un adversaire
+                                            ayant un parcours similaire (système suisse) ; les équipes
+                                            sont ensuite classées selon leur nombre de victoires.
+                                            <br />
+                                            <span className="text-muted-foreground">
+                                                Concours classique : 3 parties.
+                                            </span>
+                                        </>
+                                    }
+                                />
                                 <Input
                                     id="qualifying_rounds"
                                     name="qualifying_rounds"
@@ -170,7 +221,24 @@ export function TournamentForm({
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="tableaux_count">Tableaux</Label>
+                                <LabelWithHint
+                                    htmlFor="tableaux_count"
+                                    label="Tableaux"
+                                    hint={
+                                        <>
+                                            Nombre de tableaux de phase finale. À l’issue des
+                                            qualifications, les équipes sont réparties selon leurs
+                                            victoires : les mieux classées dans le tableau principal,
+                                            les autres dans les tableaux inférieurs (complémentaire,
+                                            consolante…). Ainsi toutes les équipes continuent à jouer.
+                                            <br />
+                                            <span className="text-muted-foreground">
+                                                Ex. 3 rondes / 3 tableaux : 3 victoires → A, 2 → B,
+                                                0-1 → C.
+                                            </span>
+                                        </>
+                                    }
+                                />
                                 <Input
                                     id="tableaux_count"
                                     name="tableaux_count"
