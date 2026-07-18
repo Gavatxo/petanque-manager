@@ -98,6 +98,21 @@ final class Game
         $this->state = GameState::Playing;
     }
 
+    /**
+     * Démarre la partie sans terrain attribué (concours sur terrains non
+     * numérotés). Le terrain reste nul, mais la partie devient jouable.
+     */
+    public function startWithoutCourt(): void
+    {
+        if ($this->state !== GameState::Pending) {
+            throw InvalidTournamentStateException::because(
+                "La partie {$this->id->value} n'est pas en attente.",
+            );
+        }
+
+        $this->state = GameState::Playing;
+    }
+
     public function recordScore(int $scoreA, int $scoreB): void
     {
         if ($this->state !== GameState::Playing) {

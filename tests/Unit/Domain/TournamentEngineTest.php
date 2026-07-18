@@ -19,6 +19,26 @@ test('le démarrage apparie la première ronde et occupe les terrains', function
         ->and($engine->coveredTeams())->toHaveCount(0);
 });
 
+test('sans terrain, toutes les parties de la ronde démarrent en parallèle', function () {
+    $engine = TournamentSimulator::build(new TournamentConfiguration(3, 4), teamCount: 8, courtCount: 0);
+    $engine->start();
+
+    expect($engine->playingGames())->toHaveCount(4)
+        ->and($engine->playingTeams())->toHaveCount(8)
+        ->and($engine->pendingGames())->toHaveCount(0)
+        ->and($engine->coveredTeams())->toHaveCount(0);
+
+    foreach ($engine->playingGames() as $game) {
+        expect($game->courtId())->toBeNull();
+    }
+
+    // Un score se saisit normalement, sans terrain à libérer.
+    $game = $engine->playingGames()[0];
+    $engine->recordResult($game->id->value, 13, 5);
+
+    expect($engine->playingGames())->toHaveCount(3);
+});
+
 test('avec moins de terrains que de parties, des équipes restent couvertes', function () {
     $engine = TournamentSimulator::build(new TournamentConfiguration(3, 4), teamCount: 8, courtCount: 2);
     $engine->start();

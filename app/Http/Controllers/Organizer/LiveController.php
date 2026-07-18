@@ -66,8 +66,7 @@ class LiveController extends Controller
                 'courts' => $tournament->courts->count(),
             ],
             'canStartQualification' => $phase === null
-                && $tournament->teams->count() >= 2
-                && $tournament->courts->count() >= 1,
+                && $tournament->teams->count() >= 2,
             'qualification' => $phase === null ? null : [
                 'currentRound' => $tournament->matches->where('phase', 'qualification')->max('round') ?? 0,
                 'complete' => $qualificationMatches->isNotEmpty()
