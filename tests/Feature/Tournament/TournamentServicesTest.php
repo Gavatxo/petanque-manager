@@ -53,11 +53,23 @@ test('impossible de démarrer avec moins de deux équipes', function () {
         ->toThrow(TournamentWorkflowException::class);
 });
 
-test('impossible de démarrer sans terrain', function () {
+test('démarre sans terrain : toutes les parties de la ronde sont en cours', function () {
+    // Terrains optionnels (concours sur terrains non numérotés) : sans terrain,
+    // toutes les parties de la ronde démarrent en parallèle, sans emplacement.
     $tournament = tournamentWithTeams(4, courtCount: 0);
 
-    expect(fn () => app(StartQualification::class)->handle($tournament))
-        ->toThrow(TournamentWorkflowException::class);
+    app(StartQualification::class)->handle($tournament);
+
+    $tournament->refresh();
+
+    $playing = $tournament->matches()
+        ->where('phase', 'qualification')
+        ->where('status', 'playing')
+        ->get();
+
+    expect($tournament->current_phase)->toBe('qualification')
+        ->and($playing)->toHaveCount(2)
+        ->and($playing->whereNotNull('court_id'))->toHaveCount(0);
 });
 
 test('impossible de démarrer deux fois les qualifications', function () {

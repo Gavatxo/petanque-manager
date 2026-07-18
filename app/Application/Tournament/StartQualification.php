@@ -30,9 +30,8 @@ final class StartQualification
             throw TournamentWorkflowException::because('Au moins deux équipes sont nécessaires.');
         }
 
-        if ($tournament->courts()->count() < 1) {
-            throw TournamentWorkflowException::because('Au moins un terrain est nécessaire.');
-        }
+        // Les terrains sont optionnels (concours sur terrains non numérotés) :
+        // sans terrain, les parties se jouent sans emplacement attribué.
 
         DB::transaction(function () use ($tournament): void {
             $tournament->update([

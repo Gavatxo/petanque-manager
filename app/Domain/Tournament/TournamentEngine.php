@@ -93,9 +93,8 @@ final class TournamentEngine
             throw InvalidTournamentStateException::because('Au moins deux équipes sont nécessaires.');
         }
 
-        if ($this->courts === []) {
-            throw InvalidTournamentStateException::because('Au moins un terrain est nécessaire.');
-        }
+        // Les terrains sont optionnels : sans terrain numéroté, les parties se
+        // jouent sans emplacement attribué (voir assignCourts()).
 
         $this->phase = TournamentPhase::Qualification;
         $this->currentRound = 1;
@@ -181,6 +180,20 @@ final class TournamentEngine
      */
     private function assignCourts(): void
     {
+        // Concours sans terrain numéroté : chaque partie de la ronde courante
+        // démarre immédiatement, sans emplacement (parties en parallèle).
+        if ($this->courts === []) {
+            foreach ($this->games as $game) {
+                if ($game->isPending() && $game->round === $this->currentRound) {
+                    $game->startWithoutCourt();
+                    $this->team($game->teamA)->startPlaying();
+                    $this->team($game->teamB)->startPlaying();
+                }
+            }
+
+            return;
+        }
+
         $freeCourts = array_values(array_filter(
             $this->courts,
             static fn (Court $court): bool => $court->isAvailable(),

@@ -307,12 +307,17 @@ export default function LiveTournament({
                             Prêt à lancer&nbsp;?
                         </h2>
                         <p className="mt-1 text-sm" style={{ color: C.muted }}>
-                            {counts.teams} équipe(s) officielle(s) · {counts.courts} terrain(s).
+                            {counts.teams} équipe(s) officielle(s) ·{' '}
+                            {counts.courts > 0
+                                ? `${counts.courts} terrain(s)`
+                                : 'terrains non numérotés'}
+                            .
                         </p>
                         {!canStartQualification && (
                             <p className="mt-3 text-sm" style={{ color: C.muted }}>
-                                Il faut au moins 2 équipes officielles et 1 terrain. Validez les
-                                présences puis créez les équipes depuis les inscriptions.
+                                Il faut au moins 2 équipes officielles. Validez les présences puis
+                                créez les équipes depuis les inscriptions. Les terrains sont
+                                optionnels.
                             </p>
                         )}
                         <button
@@ -359,7 +364,7 @@ export default function LiveTournament({
                                             className="text-xs font-bold text-white uppercase"
                                             style={{ fontFamily: DISPLAY, letterSpacing: '0.07em' }}
                                         >
-                                            Terrain {m.court}
+                                            {m.court ? `Terrain ${m.court}` : 'En cours'}
                                         </span>
                                     </div>
                                     <div className="p-3">
@@ -483,7 +488,7 @@ export default function LiveTournament({
                                         className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase"
                                         style={{ color: C.muted }}
                                     >
-                                        <span>{m.court ? `Terrain ${m.court}` : 'Exempt'}</span>
+                                        <span>{m.court ? `Terrain ${m.court}` : `Ronde ${m.round}`}</span>
                                         {m.is_forfeit && <span>Forfait</span>}
                                         <button
                                             onClick={() => openCorrect(m)}
