@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { Check, CircleDot, Clock, Flag, Play, Plus, Trophy } from 'lucide-react';
+import { Check, CircleDot, Clock, Flag, Play, Plus, Search, Trophy, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTournamentEcho } from '@/hooks/use-tournament-echo';
 import type { BreadcrumbItem } from '@/types';
@@ -75,6 +75,7 @@ const C = {
 };
 const DISPLAY = "'Barlow Condensed', sans-serif";
 const MONO = "'DM Mono', ui-monospace, monospace";
+const HIGHLIGHT_SHADOW = '0 0 0 3px oklch(0.68 0.22 40 / 0.30)';
 
 function NumberBadge({ n }: { n: number | null }) {
     if (n === null) {
@@ -167,6 +168,9 @@ export default function LiveTournament({
     const [scoreA, setScoreA] = useState(tournament.points_target);
     const [scoreB, setScoreB] = useState(0);
     const [forfeiting, setForfeiting] = useState<MatchVM | null>(null);
+    const [search, setSearch] = useState('');
+    const [highlightId, setHighlightId] = useState<number | null>(null);
+    const [searchMsg, setSearchMsg] = useState<string | null>(null);
 
     const openScore = (match: MatchVM) => {
         setMode('record');
@@ -219,9 +223,42 @@ export default function LiveTournament({
     const waiting = qualMatches.filter((m) => m.status === 'pending' || m.status === 'ready');
     const done = qualMatches.filter((m) => m.status === 'finished' || m.status === 'bye');
 
+    // Recherche rapide par numéro d'équipe : amène directement à son match
+    // (priorité aux parties en cours, puis en attente, puis terminées).
+    const runSearch = (raw: string) => {
+        setSearch(raw);
+        const num = Number.parseInt(raw.trim(), 10);
+
+        if (!Number.isFinite(num)) {
+            setSearchMsg(null);
+            setHighlightId(null);
+
+            return;
+        }
+
+        const match = [...playing, ...waiting, ...done].find(
+            (m) => m.team_a_number === num || m.team_b_number === num,
+        );
+
+        if (!match) {
+            setSearchMsg(`Aucune équipe n°${num} en jeu.`);
+            setHighlightId(null);
+
+            return;
+        }
+
+        setSearchMsg(null);
+        setHighlightId(match.id);
+        requestAnimationFrame(() => {
+            document
+                .getElementById(`qmatch-${match.id}`)
+                ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+    };
+
     return (
         <div
-            className="flex h-full flex-1 flex-col overflow-hidden"
+            className="flex h-[calc(100svh-5rem)] flex-col overflow-hidden"
             style={{ background: C.bg, fontFamily: "'DM Sans', ui-sans-serif, sans-serif" }}
         >
             <Head title={`Déroulé — ${tournament.name}`} />
@@ -333,12 +370,55 @@ export default function LiveTournament({
                 </div>
             )}
 
+            {/* Recherche rapide par numéro d'équipe */}
+            {qualification && (
+                <div
+                    className="flex shrink-0 items-center gap-3 px-5 py-2.5"
+                    style={{ background: C.card, borderBottom: `1px solid ${C.border}` }}
+                >
+                    <div className="relative w-full max-w-xs">
+                        <Search
+                            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+                            style={{ color: C.muted }}
+                        />
+                        <input
+                            value={search}
+                            onChange={(e) => runSearch(e.target.value)}
+                            inputMode="numeric"
+                            placeholder="N° d’équipe → aller au match"
+                            className="w-full rounded-lg py-2 pr-8 pl-9 text-sm outline-none focus:ring-2"
+                            style={{
+                                background: C.neutralBg,
+                                border: `1px solid ${C.border}`,
+                                color: C.ink,
+                            }}
+                        />
+                        {search !== '' && (
+                            <button
+                                type="button"
+                                onClick={() => runSearch('')}
+                                aria-label="Effacer la recherche"
+                                className="absolute top-1/2 right-2.5 -translate-y-1/2"
+                                style={{ color: C.muted }}
+                            >
+                                <X className="size-4" />
+                            </button>
+                        )}
+                    </div>
+                    {searchMsg && (
+                        <span className="text-xs font-medium" style={{ color: C.amberText }}>
+                            {searchMsg}
+                        </span>
+                    )}
+                </div>
+            )}
+
             {/* Kanban qualifications */}
             {qualification && (
-                <div className="grid flex-1 overflow-hidden lg:grid-cols-[2fr_1.35fr_1.65fr]">
+                <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:grid-cols-[2fr_1.35fr_1.65fr] lg:grid-rows-1 lg:overflow-hidden">
                     {/* EN COURS */}
                     <div
-                        className="flex flex-col overflow-hidden"
+                        className="flex flex-col overflow-hidden lg:min-h-0"
                         style={{ borderRight: `1px solid ${C.border}` }}
                     >
                         <ColumnHeader
@@ -349,12 +429,17 @@ export default function LiveTournament({
                             accent={C.green}
                             icon={<CircleDot className="size-3.5" />}
                         />
-                        <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3">
+                        <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-3">
                             {playing.map((m) => (
                                 <div
                                     key={m.id}
-                                    className="overflow-hidden rounded-xl"
-                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                    id={`qmatch-${m.id}`}
+                                    className="overflow-hidden rounded-xl transition-shadow"
+                                    style={{
+                                        background: C.card,
+                                        border: `1px solid ${highlightId === m.id ? C.accent : C.border}`,
+                                        boxShadow: highlightId === m.id ? HIGHLIGHT_SHADOW : 'none',
+                                    }}
                                 >
                                     <div
                                         className="flex items-center gap-1.5 px-3 py-1.5"
@@ -419,7 +504,7 @@ export default function LiveTournament({
 
                     {/* EN ATTENTE */}
                     <div
-                        className="flex flex-col overflow-hidden"
+                        className="flex flex-col overflow-hidden lg:min-h-0"
                         style={{ borderRight: `1px solid ${C.border}` }}
                     >
                         <ColumnHeader
@@ -430,12 +515,17 @@ export default function LiveTournament({
                             accent={C.amber}
                             icon={<Clock className="size-3.5" />}
                         />
-                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+                        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
                             {waiting.map((m) => (
                                 <div
                                     key={m.id}
-                                    className="rounded-lg p-3"
-                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                    id={`qmatch-${m.id}`}
+                                    className="rounded-lg p-3 transition-shadow"
+                                    style={{
+                                        background: C.card,
+                                        border: `1px solid ${highlightId === m.id ? C.accent : C.border}`,
+                                        boxShadow: highlightId === m.id ? HIGHLIGHT_SHADOW : 'none',
+                                    }}
                                 >
                                     <span
                                         className="mb-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold uppercase"
@@ -468,7 +558,7 @@ export default function LiveTournament({
                     </div>
 
                     {/* TERMINÉS + classement */}
-                    <div className="flex flex-col overflow-hidden">
+                    <div className="flex flex-col overflow-hidden lg:min-h-0">
                         <ColumnHeader
                             label="Terminés"
                             count={done.length}
@@ -477,12 +567,17 @@ export default function LiveTournament({
                             accent={C.neutral}
                             icon={<Check className="size-3.5" />}
                         />
-                        <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+                        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3">
                             {done.map((m) => (
                                 <div
                                     key={m.id}
-                                    className="rounded-lg p-3"
-                                    style={{ background: C.card, border: `1px solid ${C.border}` }}
+                                    id={`qmatch-${m.id}`}
+                                    className="rounded-lg p-3 transition-shadow"
+                                    style={{
+                                        background: C.card,
+                                        border: `1px solid ${highlightId === m.id ? C.accent : C.border}`,
+                                        boxShadow: highlightId === m.id ? HIGHLIGHT_SHADOW : 'none',
+                                    }}
                                 >
                                     <div
                                         className="mb-1.5 flex items-center justify-between text-[10px] font-semibold uppercase"
