@@ -8,18 +8,20 @@ import { useEffect } from 'react';
  */
 export function useTournamentEcho(tournamentId: number): void {
     useEffect(() => {
-        if (typeof window === 'undefined' || !window.Echo) {
+        const echo = typeof window !== 'undefined' ? window.Echo : undefined;
+
+        if (!echo) {
             return;
         }
 
         const channelName = `tournament.${tournamentId}`;
 
-        window.Echo.channel(channelName).listen('.updated', () => {
+        echo.channel(channelName).listen('.updated', () => {
             router.reload();
         });
 
         return () => {
-            window.Echo.leave(channelName);
+            echo.leave(channelName);
         };
     }, [tournamentId]);
 }
