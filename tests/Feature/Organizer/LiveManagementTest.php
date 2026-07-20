@@ -123,6 +123,24 @@ test('starting qualification without a format keeps the stored one', function ()
         ->and($tournament->tableaux_count)->toBe(2);
 });
 
+test('the live page exposes standings with points for and against', function () {
+    $user = User::factory()->create();
+    $tournament = liveTournament($user, teams: 4, rounds: 2, tableaux: 2);
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/qualification/start");
+
+    $match = $tournament->matches()->where('status', 'playing')->first();
+    $this->actingAs($user)->post("/organizer/matches/{$match->id}/result", ['score_a' => 13, 'score_b' => 6]);
+
+    $this->actingAs($user)
+        ->get("/organizer/tournaments/{$tournament->id}/live")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('qualification.standings.0.points_for')
+            ->has('qualification.standings.0.points_against')
+            ->where('qualification.standings.0.wins', 1)
+            ->where('qualification.standings.0.points_for', 13));
+});
+
 test('recording a result via the route finishes the match', function () {
     $user = User::factory()->create();
     $tournament = liveTournament($user);

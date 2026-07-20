@@ -244,6 +244,8 @@ class LiveController extends Controller
     {
         $wins = [];
         $losses = [];
+        $pointsFor = [];
+        $pointsAgainst = [];
 
         foreach ($tournament->matches->where('phase', 'qualification')->where('status', 'finished') as $m) {
             /** @var Matchup $m */
@@ -251,6 +253,13 @@ class LiveController extends Controller
             $loserId = $winnerId === $m->team_a_id ? $m->team_b_id : $m->team_a_id;
             $wins[$winnerId] = ($wins[$winnerId] ?? 0) + 1;
             $losses[$loserId] = ($losses[$loserId] ?? 0) + 1;
+
+            $scoreA = (int) $m->score_a;
+            $scoreB = (int) $m->score_b;
+            $pointsFor[$m->team_a_id] = ($pointsFor[$m->team_a_id] ?? 0) + $scoreA;
+            $pointsAgainst[$m->team_a_id] = ($pointsAgainst[$m->team_a_id] ?? 0) + $scoreB;
+            $pointsFor[$m->team_b_id] = ($pointsFor[$m->team_b_id] ?? 0) + $scoreB;
+            $pointsAgainst[$m->team_b_id] = ($pointsAgainst[$m->team_b_id] ?? 0) + $scoreA;
         }
 
         $standings = [];
@@ -260,12 +269,15 @@ class LiveController extends Controller
                 'seed' => $meta['seed'],
                 'wins' => $wins[$teamId] ?? 0,
                 'losses' => $losses[$teamId] ?? 0,
+                'points_for' => $pointsFor[$teamId] ?? 0,
+                'points_against' => $pointsAgainst[$teamId] ?? 0,
             ];
         }
 
         usort(
             $standings,
             fn (array $a, array $b): int => $b['wins'] <=> $a['wins']
+                ?: ($b['points_for'] - $b['points_against']) <=> ($a['points_for'] - $a['points_against'])
                 ?: $a['losses'] <=> $b['losses']
                 ?: $a['seed'] <=> $b['seed'],
         );
