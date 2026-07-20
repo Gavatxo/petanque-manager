@@ -12,6 +12,7 @@ use App\Domain\Tournament\Enum\Division;
 use App\Domain\Tournament\Enum\TeamState;
 use App\Domain\Tournament\Enum\TournamentPhase;
 use App\Domain\Tournament\Exception\InvalidTournamentStateException;
+use App\Domain\Tournament\Exception\PairingDeadlockException;
 use App\Domain\Tournament\Pairing\Matchmaker;
 use App\Domain\Tournament\ValueObject\CourtId;
 use App\Domain\Tournament\ValueObject\GameId;
@@ -20,12 +21,14 @@ use App\Domain\Tournament\ValueObject\TeamId;
 /**
  * Moteur d'un concours libre de pétanque, indépendant de toute infrastructure.
  *
- * Fonctionnement asynchrone : au sein d'une ronde, les parties se terminent à
- * des moments différents et les équipes qui ont fini patientent (« en attente »)
- * jusqu'à ce que la ronde soit close, moment où la ronde suivante est appariée
- * automatiquement (appariement de Swiss, sans revanche). Les terrains sont une
- * ressource rare attribuée dynamiquement : une paire sans terrain reste
- * « couverte » jusqu'à en obtenir un.
+ * Appariement progressif « au fil de l'eau » : dès qu'une partie se termine, les
+ * deux équipes sont réappariées avec d'autres équipes de même bilan
+ * (victoires/défaites) jamais rencontrées — gagnants contre gagnants, perdants
+ * contre perdants — sans attendre la fin de la ronde. Une équipe sans adversaire
+ * de même bilan patiente ; en cas de blocage (plus aucune partie en cours), on
+ * apparie au plus proche bilan, quitte à exempter (jamais de revanche). Les
+ * terrains sont une ressource rare attribuée dynamiquement : une paire sans
+ * terrain reste « couverte » jusqu'à en obtenir un.
  */
 final class TournamentEngine
 {
@@ -138,7 +141,7 @@ final class TournamentEngine
         // Un terrain vient de se libérer : on couvre une partie en attente.
         $this->assignCourts();
 
-        $this->progressIfRoundComplete();
+        $this->advance();
     }
 
     // ---------------------------------------------------------------------
@@ -180,11 +183,12 @@ final class TournamentEngine
      */
     private function assignCourts(): void
     {
-        // Concours sans terrain numéroté : chaque partie de la ronde courante
-        // démarre immédiatement, sans emplacement (parties en parallèle).
+        // Concours sans terrain numéroté : toute partie couverte démarre
+        // immédiatement, sans emplacement (parties en parallèle, tous tours
+        // confondus — l'appariement est progressif).
         if ($this->courts === []) {
             foreach ($this->games as $game) {
-                if ($game->isPending() && $game->round === $this->currentRound) {
+                if ($game->isPending()) {
                     $game->startWithoutCourt();
                     $this->team($game->teamA)->startPlaying();
                     $this->team($game->teamB)->startPlaying();
@@ -204,7 +208,7 @@ final class TournamentEngine
         }
 
         foreach ($this->games as $game) {
-            if (! $game->isPending() || $game->round !== $this->currentRound) {
+            if (! $game->isPending()) {
                 continue;
             }
 
@@ -220,44 +224,198 @@ final class TournamentEngine
         }
     }
 
-    private function progressIfRoundComplete(): void
+    /**
+     * Fait progresser le concours après chaque résultat, sans attendre la fin de
+     * la ronde : les équipes qui viennent de finir sont réappariées « au fil de
+     * l'eau » avec une autre équipe de même bilan (victoires/défaites) jamais
+     * rencontrée — gagnants contre gagnants, perdants contre perdants. Faute
+     * d'adversaire de même bilan disponible, une équipe patiente. En cas de
+     * blocage (plus aucune partie en cours mais des équipes doivent encore
+     * jouer), on apparie au plus proche bilan, quitte à exempter.
+     */
+    private function advance(): void
     {
-        foreach ($this->games as $game) {
-            if ($game->round === $this->currentRound && ! $game->isFinished()) {
-                return;
+        $guard = 0;
+
+        while (true) {
+            if (++$guard > 1_000_000) {
+                throw InvalidTournamentStateException::because('Progression emballée : arrêt de sécurité.');
             }
-        }
 
-        if ($this->currentRound >= $this->config->qualifyingRounds) {
-            $this->finalize();
+            $this->qualifyCompletedTeams();
 
-            return;
-        }
+            if ($this->pairSameRecordAvailable()) {
+                $this->assignCourts();
 
-        $this->currentRound++;
-
-        foreach ($this->teams as $team) {
-            if (! $team->isQualified()) {
-                $team->markAvailable();
+                continue;
             }
+
+            // Des parties tournent encore : on attend les prochains résultats.
+            if ($this->hasActiveGames()) {
+                break;
+            }
+
+            // Blocage : plus rien ne tourne mais des équipes doivent jouer.
+            if (! $this->pairRemaining()) {
+                break;
+            }
+
+            $this->assignCourts();
         }
 
-        $this->pairCurrentRound();
+        if ($this->allTeamsQualified()) {
+            $this->phase = TournamentPhase::Completed;
+        }
     }
 
-    private function finalize(): void
+    /** Fige le tableau des équipes ayant joué toutes leurs parties. */
+    private function qualifyCompletedTeams(): void
     {
         foreach ($this->teams as $team) {
-            $division = $this->config->divisionRule->divisionFor(
-                $team->wins(),
-                $this->config->qualifyingRounds,
-                $this->config->divisionCount,
-            );
+            if ($team->isQualified()) {
+                continue;
+            }
 
-            $team->qualify($division);
+            if (($team->isAvailable() || $team->isWaiting())
+                && $team->gamesPlayed() >= $this->config->qualifyingRounds) {
+                $team->qualify($this->config->divisionRule->divisionFor(
+                    $team->wins(),
+                    $this->config->qualifyingRounds,
+                    $this->config->divisionCount,
+                ));
+            }
+        }
+    }
+
+    /**
+     * Apparie les équipes disponibles de même bilan, sans revanche.
+     *
+     * @return bool vrai si au moins une paire a été créée
+     */
+    private function pairSameRecordAvailable(): bool
+    {
+        /** @var array<string, list<Team>> $groups */
+        $groups = [];
+
+        foreach ($this->teams as $team) {
+            if ($team->isAvailable() && $team->gamesPlayed() < $this->config->qualifyingRounds) {
+                $groups[$team->wins().'-'.$team->losses()][] = $team;
+            }
         }
 
-        $this->phase = TournamentPhase::Completed;
+        // Ordre déterministe (bilan décroissant) : identifiants de partie stables.
+        uksort($groups, static function (string $a, string $b): int {
+            $winsA = (int) explode('-', $a)[0];
+            $winsB = (int) explode('-', $b)[0];
+
+            return $winsB <=> $winsA ?: strcmp($a, $b);
+        });
+
+        $made = false;
+
+        foreach ($groups as $group) {
+            if (count($group) < 2) {
+                continue;
+            }
+
+            foreach ($this->matchmaker->progressivePairs($group) as $pair) {
+                $this->createGame($pair->teamA, $pair->teamB);
+                $made = true;
+            }
+        }
+
+        return $made;
+    }
+
+    /**
+     * Débloque un concours à l'arrêt : apparie au plus proche bilan (Swiss
+     * classique, sans revanche) les équipes qui doivent encore jouer, exemptant
+     * si nécessaire.
+     *
+     * @return bool vrai si une paire a été créée ou une équipe exemptée
+     */
+    private function pairRemaining(): bool
+    {
+        $teams = array_values(array_filter(
+            $this->teams,
+            fn (Team $team): bool => ($team->isAvailable() || $team->isWaiting())
+                && $team->gamesPlayed() < $this->config->qualifyingRounds,
+        ));
+
+        if ($teams === []) {
+            return false;
+        }
+
+        try {
+            $result = $this->matchmaker->pair($teams);
+        } catch (PairingDeadlockException) {
+            // Aucun appariement sans revanche : on exempte la plus faible.
+            $this->weakest($teams)->awardBye();
+
+            return true;
+        }
+
+        if ($result->byeTeam !== null) {
+            $this->team($result->byeTeam)->awardBye();
+        }
+
+        foreach ($result->pairs as $pair) {
+            $this->createGame($pair->teamA, $pair->teamB);
+        }
+
+        return $result->pairs !== [] || $result->byeTeam !== null;
+    }
+
+    private function createGame(TeamId $a, TeamId $b): void
+    {
+        $round = max($this->team($a)->gamesPlayed(), $this->team($b)->gamesPlayed()) + 1;
+        $this->currentRound = max($this->currentRound, $round);
+
+        $id = 'g'.(++$this->gameSequence);
+        $game = new Game(GameId::of($id), $round, $a, $b);
+        $this->games[$id] = $game;
+
+        $this->team($a)->assignToGame($game->id);
+        $this->team($b)->assignToGame($game->id);
+    }
+
+    /**
+     * @param  list<Team>  $teams
+     */
+    private function weakest(array $teams): Team
+    {
+        $ranked = $teams;
+
+        usort(
+            $ranked,
+            static fn (Team $a, Team $b): int => $a->byes() <=> $b->byes()
+                ?: $a->wins() <=> $b->wins()
+                ?: $b->seed <=> $a->seed,
+        );
+
+        return $ranked[0];
+    }
+
+    private function hasActiveGames(): bool
+    {
+        foreach ($this->games as $game) {
+            if ($game->isPending() || $game->isPlaying()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function allTeamsQualified(): bool
+    {
+        foreach ($this->teams as $team) {
+            if (! $team->isQualified()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // ---------------------------------------------------------------------

@@ -78,6 +78,39 @@ test('une équipe qui finit avant les autres passe en attente de la ronde suivan
         ->and($engine->team($game->teamA)->state())->toBe(TeamState::Available);
 });
 
+test('la partie suivante se remplit au fil de l’eau, sans attendre la fin de la ronde', function () {
+    // 8 équipes, terrains à volonté : dès que deux gagnants ont fini, ils
+    // s'affrontent — la ronde 2 démarre pendant que la ronde 1 tourne encore.
+    $engine = TournamentSimulator::build(new TournamentConfiguration(3, 4), teamCount: 8, courtCount: 8);
+    $engine->start();
+
+    $win = function ($game) use ($engine): void {
+        $seedA = $engine->team($game->teamA)->seed;
+        $seedB = $engine->team($game->teamB)->seed;
+        $engine->recordResult($game->id->value, $seedA > $seedB ? 13 : 7, $seedA > $seedB ? 7 : 13);
+    };
+
+    $round1 = $engine->playingGames();
+    $win($round1[0]);
+    $win($round1[1]);
+
+    $round2 = array_values(array_filter($engine->games(), fn ($g): bool => $g->round === 2));
+    $round1StillPlaying = array_filter($engine->playingGames(), fn ($g): bool => $g->round === 1);
+
+    // La ronde 2 existe déjà alors que la ronde 1 n'est pas terminée.
+    expect($round2)->not->toBeEmpty()
+        ->and($round1StillPlaying)->not->toBeEmpty();
+
+    // Chaque nouvelle partie oppose deux équipes de même bilan (gagnant vs
+    // gagnant, perdant vs perdant).
+    foreach ($round2 as $game) {
+        $a = $engine->team($game->teamA);
+        $b = $engine->team($game->teamB);
+        expect($a->wins())->toBe($b->wins())
+            ->and($a->losses())->toBe($b->losses());
+    }
+});
+
 test('un nombre impair d’équipes en exempte une (état en attente)', function () {
     $engine = TournamentSimulator::build(new TournamentConfiguration(2, 3), teamCount: 5, courtCount: 3);
     $engine->start();

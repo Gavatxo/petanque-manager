@@ -33,18 +33,25 @@ function assertTournamentIntegrity(TournamentEngine $engine, int $teamCount, int
     $rule = new WinCountDivisionRule;
     $divisionCount = $engine->configuration()->divisionCount;
 
-    // 1. Chaque équipe a joué exactement `rounds` parties, sans exempt (nombre pair).
+    // 1. Chaque équipe a joué exactement `rounds` parties (exempts compris).
+    //    L'appariement progressif peut exempter : un exempt compte comme une
+    //    partie et une victoire, sans adversaire ajouté à l'historique.
+    $totalByes = 0;
     foreach ($engine->teams() as $team) {
+        $totalByes += $team->byes();
+        $realGames = $rounds - $team->byes();
+
+        // Bilan complet = rondes (un exempt compte comme une victoire) ; en
+        // revanche l'historique d'adversaires ne compte que les parties réelles.
         expect($team->gamesPlayed())->toBe($rounds)
-            ->and($team->byes())->toBe(0)
             ->and($team->wins() + $team->losses())->toBe($rounds);
 
-        // 2. Aucune revanche : historique d'adversaires distinct.
+        // 2. Aucune revanche : un adversaire distinct par partie réellement jouée.
         $history = $team->opponentHistory();
         expect(count($history))->toBe(count(array_unique($history)))
-            ->and(count($history))->toBe($rounds);
+            ->and(count($history))->toBe($realGames);
 
-        // 3. Tableau conforme à la règle.
+        // 3. Tableau conforme à la règle (les exempts comptent comme victoires).
         expect($team->division())->toBe($rule->divisionFor($team->wins(), $rounds, $divisionCount));
     }
 
@@ -61,8 +68,9 @@ function assertTournamentIntegrity(TournamentEngine $engine, int $teamCount, int
     $total = array_sum(array_map('count', $divisions));
     expect($total)->toBe($teamCount);
 
-    // 6. Distribution binomiale exacte quand le Swiss reste « propre » (rounds ≤ log2 N).
-    if ((2 ** $rounds) <= $teamCount) {
+    // 6. Distribution binomiale exacte quand le Swiss reste « propre » : rondes ≤
+    //    log2 N ET aucun exempt (sinon un exempt décale un bilan).
+    if ((2 ** $rounds) <= $teamCount && $totalByes === 0) {
         expect(winHistogram($engine))->toBe(binomialHistogram($teamCount, $rounds));
     }
 }

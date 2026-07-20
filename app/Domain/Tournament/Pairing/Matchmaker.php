@@ -53,6 +53,45 @@ final class Matchmaker
     }
 
     /**
+     * Appariement « au fil de l'eau » d'un groupe d'équipes de même bilan :
+     * apparie le plus possible d'équipes sans revanche. Les équipes sans
+     * adversaire libre restent non appariées (elles patientent) — aucun exempt
+     * n'est décidé ici, contrairement à {@see pair()}.
+     *
+     * @param  list<Team>  $teams  équipes de même bilan, disponibles
+     * @return list<PairingPair>
+     */
+    public function progressivePairs(array $teams): array
+    {
+        $pool = $teams;
+        $pairs = [];
+
+        while (count($pool) >= 2) {
+            $anchorIndex = $this->mostConstrainedIndex($pool);
+            $anchor = $pool[$anchorIndex];
+            unset($pool[$anchorIndex]);
+            $pool = array_values($pool);
+
+            $candidates = $this->candidatesFor($anchor, $pool);
+
+            if ($candidates === []) {
+                // Aucun adversaire sans revanche : l'équipe patiente (non appariée).
+                continue;
+            }
+
+            $candidate = $candidates[0];
+            $pairs[] = new PairingPair($anchor->id, $candidate->id);
+
+            $pool = array_values(array_filter(
+                $pool,
+                static fn (Team $team): bool => ! $team->id->equals($candidate->id),
+            ));
+        }
+
+        return $pairs;
+    }
+
+    /**
      * Recherche un appariement parfait sans revanche par retour arrière.
      *
      * Heuristique « équipe la plus contrainte d'abord » (celle qui a le moins
