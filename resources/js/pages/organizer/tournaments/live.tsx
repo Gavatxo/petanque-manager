@@ -102,26 +102,35 @@ function ScoreStepper({
 }) {
     const clamp = (v: number) => Math.max(0, Math.min(max, v));
     const btn =
-        'flex size-9 items-center justify-center rounded-full text-xl leading-none font-light';
+        'flex size-10 items-center justify-center rounded-full text-2xl leading-none font-light';
 
     return (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
             <button
                 type="button"
+                aria-label="Diminuer"
                 onClick={() => onChange(clamp(value - 1))}
                 className={btn}
                 style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
             >
                 −
             </button>
-            <span
-                className="min-w-[46px] text-center text-3xl tabular-nums"
-                style={{ fontFamily: MONO, color: C.ink }}
-            >
-                {value}
-            </span>
+            <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                max={max}
+                value={value}
+                onChange={(e) => {
+                    const v = Number.parseInt(e.target.value, 10);
+                    onChange(Number.isNaN(v) ? 0 : clamp(v));
+                }}
+                className="w-16 text-center text-4xl tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                style={{ fontFamily: MONO, color: C.ink, background: 'transparent', border: 'none' }}
+            />
             <button
                 type="button"
+                aria-label="Augmenter"
                 onClick={() => onChange(clamp(value + 1))}
                 className={btn}
                 style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
@@ -129,6 +138,23 @@ function ScoreStepper({
                 +
             </button>
         </div>
+    );
+}
+
+/** Numéro d'équipe — repère principal pour l'organisateur, affiché en évidence. */
+function NumberBadge({ n }: { n: number | null }) {
+    if (n === null) {
+        return null;
+    }
+
+    return (
+        <span
+            className="flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg px-1.5 text-base font-bold tabular-nums"
+            style={{ background: C.primarySoft, color: C.primarySoftText, fontFamily: MONO }}
+            title="Numéro d'équipe"
+        >
+            {n}
+        </span>
     );
 }
 
@@ -218,18 +244,15 @@ export default function LiveTournament({
     const [activeDivision, setActiveDivision] = useState<string>(finals?.[0]?.label ?? 'A');
     const [search, setSearch] = useState('');
 
-    // Saisie de score en ligne (qualifications).
-    const [expandedId, setExpandedId] = useState<number | null>(null);
-    const [expandMode, setExpandMode] = useState<'record' | 'correct'>('record');
+    // Saisie de score : une seule modale, partagée qualifications / finales.
+    const [scoring, setScoring] = useState<MatchVM | null>(null);
+    const [scoreMode, setScoreMode] = useState<'record' | 'correct'>('record');
+    const [scoreSubtitle, setScoreSubtitle] = useState('');
+    const [scoreForfeitable, setScoreForfeitable] = useState(false);
     const [scoreA, setScoreA] = useState(maxScore);
     const [scoreB, setScoreB] = useState(0);
 
-    // Forfait + modale de score des phases finales.
     const [forfeiting, setForfeiting] = useState<MatchVM | null>(null);
-    const [finalScoring, setFinalScoring] = useState<MatchVM | null>(null);
-    const [finalMode, setFinalMode] = useState<'record' | 'correct'>('record');
-    const [fScoreA, setFScoreA] = useState(maxScore);
-    const [fScoreB, setFScoreB] = useState(0);
 
     const recordBySeed = useMemo(() => {
         const map = new Map<number, { wins: number; losses: number }>();
@@ -244,21 +267,27 @@ export default function LiveTournament({
 
     const isFinished = (m: MatchVM) => m.status === 'finished' || m.status === 'bye';
 
-    const openExpand = (m: MatchVM) => {
+    const openScore = (m: MatchVM, opts?: { subtitle?: string; forfeitable?: boolean }) => {
         const correcting = m.status === 'finished';
-        setExpandMode(correcting ? 'correct' : 'record');
+        setScoreMode(correcting ? 'correct' : 'record');
         setScoreA(correcting ? (m.score_a ?? maxScore) : maxScore);
         setScoreB(correcting ? (m.score_b ?? 0) : 0);
-        setExpandedId((id) => (id === m.id ? null : m.id));
+        setScoreSubtitle(opts?.subtitle ?? `Le vainqueur atteint ${maxScore} points.`);
+        setScoreForfeitable(opts?.forfeitable ?? false);
+        setScoring(m);
     };
-    const submitExpand = (m: MatchVM) => {
-        const payload = { score_a: scoreA, score_b: scoreB };
-        const opts = { preserveScroll: true, onSuccess: () => setExpandedId(null) };
+    const submitScore = () => {
+        if (!scoring) {
+            return;
+        }
 
-        if (expandMode === 'correct') {
-            router.patch(`/organizer/matches/${m.id}/result`, payload, opts);
+        const payload = { score_a: scoreA, score_b: scoreB };
+        const opts = { preserveScroll: true, onSuccess: () => setScoring(null) };
+
+        if (scoreMode === 'correct') {
+            router.patch(`/organizer/matches/${scoring.id}/result`, payload, opts);
         } else {
-            router.post(`/organizer/matches/${m.id}/result`, payload, opts);
+            router.post(`/organizer/matches/${scoring.id}/result`, payload, opts);
         }
     };
     const submitForfeit = (teamId: number | null) => {
@@ -271,27 +300,6 @@ export default function LiveTournament({
             { forfeiting_team_id: teamId },
             { preserveScroll: true, onSuccess: () => setForfeiting(null) },
         );
-    };
-    const openFinal = (m: MatchVM) => {
-        const correcting = m.status === 'finished';
-        setFinalMode(correcting ? 'correct' : 'record');
-        setFScoreA(correcting ? (m.score_a ?? maxScore) : maxScore);
-        setFScoreB(correcting ? (m.score_b ?? 0) : 0);
-        setFinalScoring(m);
-    };
-    const submitFinal = () => {
-        if (!finalScoring) {
-            return;
-        }
-
-        const payload = { score_a: fScoreA, score_b: fScoreB };
-        const opts = { preserveScroll: true, onSuccess: () => setFinalScoring(null) };
-
-        if (finalMode === 'correct') {
-            router.patch(`/organizer/matches/${finalScoring.id}/result`, payload, opts);
-        } else {
-            router.post(`/organizer/matches/${finalScoring.id}/result`, payload, opts);
-        }
     };
 
     // ── Header ───────────────────────────────────────────────────────────────
@@ -669,7 +677,6 @@ export default function LiveTournament({
     const renderMatchRow = (m: MatchVM) => {
         const playing = m.status === 'playing';
         const finished = isFinished(m);
-        const expanded = expandedId === m.id;
         const recA = m.team_a_number !== null ? recordBySeed.get(m.team_a_number) : undefined;
         const recB = m.team_b_number !== null ? recordBySeed.get(m.team_b_number) : undefined;
         const wonA = m.winner_team_id !== null && m.winner_team_id === m.team_a_id;
@@ -679,179 +686,115 @@ export default function LiveTournament({
             <div
                 key={m.id}
                 id={`qmatch-${m.id}`}
-                className="overflow-hidden rounded-xl"
+                className="flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-3"
                 style={{
                     background: C.card,
                     border: `1.5px solid ${playing ? 'oklch(0.80 0.08 152)' : C.border}`,
                 }}
             >
-                <div className="flex items-center gap-2.5 px-3.5 py-2.5">
-                    {/* Terrain + status */}
-                    <div className="flex w-[74px] shrink-0 items-center gap-1.5">
-                        <LiveDot
-                            color={
-                                playing ? GREEN_DOT : finished ? C.neutral : C.amber
-                            }
-                            pulse={playing}
-                        />
-                        <span
-                            className="text-[13px] font-bold"
-                            style={{
-                                fontFamily: DISPLAY,
-                                color: playing ? C.greenText : C.muted,
-                                letterSpacing: '0.04em',
-                            }}
-                        >
-                            {m.court ? `T.${m.court}` : '—'}
-                        </span>
-                    </div>
+                {/* Terrain + status */}
+                <div className="flex w-[70px] shrink-0 items-center gap-1.5">
+                    <LiveDot
+                        color={playing ? GREEN_DOT : finished ? C.neutral : C.amber}
+                        pulse={playing}
+                    />
+                    <span
+                        className="text-[13px] font-bold"
+                        style={{
+                            fontFamily: DISPLAY,
+                            color: playing ? C.greenText : C.muted,
+                            letterSpacing: '0.04em',
+                        }}
+                    >
+                        {m.court ? `T.${m.court}` : '—'}
+                    </span>
+                </div>
 
-                    {/* Team A */}
-                    <div className="min-w-0 flex-1 text-right">
+                {/* Team A */}
+                <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                    <div className="min-w-0 text-right">
                         <div
                             className="truncate text-sm font-semibold"
                             style={{ color: C.ink, fontStyle: m.team_a ? 'normal' : 'italic' }}
                         >
                             {m.team_a ?? 'À venir'}
                         </div>
-                        <div className="mt-0.5 flex items-center justify-end gap-1">
-                            {m.team_a_number !== null && (
-                                <span className="text-[10px]" style={{ color: C.muted }}>
-                                    Éq.{m.team_a_number}
-                                </span>
-                            )}
-                            {recA && <RecordChip wins={recA.wins} losses={recA.losses} won={wonA} />}
-                        </div>
-                    </div>
-
-                    {/* Score / VS */}
-                    <div className="w-[72px] shrink-0 text-center">
-                        {finished && m.score_a !== null ? (
-                            <span
-                                className="text-lg tabular-nums"
-                                style={{ fontFamily: MONO, color: C.ink }}
-                            >
-                                {m.score_a} — {m.score_b}
-                            </span>
-                        ) : (
-                            <span
-                                className="text-sm font-bold"
-                                style={{ fontFamily: DISPLAY, color: C.neutral, letterSpacing: '0.08em' }}
-                            >
-                                VS
-                            </span>
+                        {recA && (
+                            <div className="mt-0.5 flex justify-end">
+                                <RecordChip wins={recA.wins} losses={recA.losses} won={wonA} />
+                            </div>
                         )}
                     </div>
+                    <NumberBadge n={m.team_a_number} />
+                </div>
 
-                    {/* Team B */}
-                    <div className="min-w-0 flex-1 text-left">
+                {/* Score / VS */}
+                <div className="w-[70px] shrink-0 text-center">
+                    {finished && m.score_a !== null ? (
+                        <span
+                            className="text-lg tabular-nums"
+                            style={{ fontFamily: MONO, color: C.ink }}
+                        >
+                            {m.score_a} — {m.score_b}
+                        </span>
+                    ) : (
+                        <span
+                            className="text-sm font-bold"
+                            style={{ fontFamily: DISPLAY, color: C.neutral, letterSpacing: '0.08em' }}
+                        >
+                            VS
+                        </span>
+                    )}
+                </div>
+
+                {/* Team B */}
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <NumberBadge n={m.team_b_number} />
+                    <div className="min-w-0 text-left">
                         <div
                             className="truncate text-sm font-semibold"
                             style={{ color: C.ink, fontStyle: m.team_b ? 'normal' : 'italic' }}
                         >
                             {m.team_b ?? 'À venir'}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-1">
-                            {m.team_b_number !== null && (
-                                <span className="text-[10px]" style={{ color: C.muted }}>
-                                    Éq.{m.team_b_number}
-                                </span>
-                            )}
-                            {recB && <RecordChip wins={recB.wins} losses={recB.losses} won={wonB} />}
-                        </div>
-                    </div>
-
-                    {/* Action */}
-                    <div className="shrink-0">
-                        {m.status === 'finished' ? (
-                            <button
-                                onClick={() => openExpand(m)}
-                                className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold"
-                                style={{ background: C.greenBg, color: C.greenText }}
-                                title="Corriger le score"
-                            >
-                                <Check className="size-3" />
-                                Validé
-                            </button>
-                        ) : m.status === 'bye' ? (
-                            <span className="text-[11px] italic" style={{ color: C.muted }}>
-                                Qualifié
-                            </span>
-                        ) : playing ? (
-                            <button
-                                onClick={() => openExpand(m)}
-                                className="rounded-lg px-3.5 py-2 text-xs font-bold text-white"
-                                style={{ background: C.primary }}
-                            >
-                                Saisir
-                            </button>
-                        ) : (
-                            <span className="text-[11px] italic" style={{ color: C.amberText }}>
-                                {m.team_b === null ? 'Adversaire à venir' : 'En attente'}
-                            </span>
+                        {recB && (
+                            <div className="mt-0.5 flex">
+                                <RecordChip wins={recB.wins} losses={recB.losses} won={wonB} />
+                            </div>
                         )}
                     </div>
                 </div>
 
-                {/* Expanded score entry */}
-                {expanded && (playing || m.status === 'finished') && (
-                    <div
-                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
-                        style={{ borderTop: `1px solid ${C.borderSoft}`, background: C.cardAlt }}
-                    >
-                        <div className="flex flex-1 items-center justify-end gap-2">
-                            <span
-                                className="max-w-[120px] truncate text-xs font-semibold"
-                                style={{ color: C.ink2 }}
-                            >
-                                {m.team_a}
-                            </span>
-                            <ScoreStepper value={scoreA} onChange={setScoreA} max={maxScore} />
-                        </div>
-                        <span
-                            className="text-base font-bold"
-                            style={{ fontFamily: DISPLAY, color: C.neutral }}
+                {/* Action */}
+                <div className="w-[92px] shrink-0 text-right">
+                    {m.status === 'finished' ? (
+                        <button
+                            onClick={() => openScore(m)}
+                            className="inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-[11px] font-bold"
+                            style={{ background: C.greenBg, color: C.greenText }}
+                            title="Corriger le score"
                         >
-                            —
+                            <Check className="size-3" />
+                            Validé
+                        </button>
+                    ) : m.status === 'bye' ? (
+                        <span className="text-[11px] italic" style={{ color: C.muted }}>
+                            Qualifié
                         </span>
-                        <div className="flex flex-1 items-center gap-2">
-                            <ScoreStepper value={scoreB} onChange={setScoreB} max={maxScore} />
-                            <span
-                                className="max-w-[120px] truncate text-xs font-semibold"
-                                style={{ color: C.ink2 }}
-                            >
-                                {m.team_b}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {playing && (
-                                <button
-                                    onClick={() => setForfeiting(m)}
-                                    className="rounded-lg px-2.5 py-2 text-[11px] font-medium"
-                                    style={{ color: C.muted }}
-                                >
-                                    Forfait
-                                </button>
-                            )}
-                            <button
-                                onClick={() => setExpandedId(null)}
-                                className="rounded-lg px-3 py-2 text-xs font-semibold"
-                                style={{ background: C.neutralBg, color: C.ink }}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                onClick={() => submitExpand(m)}
-                                disabled={scoreA === scoreB}
-                                className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-bold text-white disabled:opacity-40"
-                                style={{ background: C.green }}
-                            >
-                                <Check className="size-3.5" />
-                                {expandMode === 'correct' ? 'Corriger' : 'Valider'}
-                            </button>
-                        </div>
-                    </div>
-                )}
+                    ) : playing ? (
+                        <button
+                            onClick={() => openScore(m, { forfeitable: true })}
+                            className="rounded-lg px-4 py-2 text-xs font-bold text-white"
+                            style={{ background: C.primary }}
+                        >
+                            Saisir
+                        </button>
+                    ) : (
+                        <span className="text-[11px] italic" style={{ color: C.amberText }}>
+                            {m.team_b === null ? 'Adversaire à venir' : 'En attente'}
+                        </span>
+                    )}
+                </div>
             </div>
         );
     };
@@ -1029,7 +972,7 @@ export default function LiveTournament({
                 {ready && (
                     <div className="p-1.5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
                         <button
-                            onClick={() => openFinal(m)}
+                            onClick={() => openScore(m, { subtitle: `Tableau ${divisionLabel}` })}
                             className="w-full rounded-md py-1.5 text-[11px] font-bold text-white"
                             style={{ background: C.accent }}
                         >
@@ -1040,7 +983,7 @@ export default function LiveTournament({
                 {finished && (
                     <div className="p-1.5" style={{ borderTop: `1px solid ${C.borderSoft}` }}>
                         <button
-                            onClick={() => openFinal(m)}
+                            onClick={() => openScore(m, { subtitle: `Tableau ${divisionLabel}` })}
                             className="w-full text-center text-[10px] uppercase"
                             style={{ color: C.muted }}
                         >
@@ -1221,15 +1164,15 @@ export default function LiveTournament({
                 </div>
             )}
 
-            {/* Finals score modal */}
-            {finalScoring && (
+            {/* Score modal (qualifications + finales) */}
+            {scoring && (
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center p-5"
                     style={{ background: 'oklch(0 0 0 / 0.52)', backdropFilter: 'blur(3px)' }}
-                    onClick={(e) => e.target === e.currentTarget && setFinalScoring(null)}
+                    onClick={(e) => e.target === e.currentTarget && setScoring(null)}
                 >
                     <div
-                        className="w-full max-w-sm overflow-hidden rounded-2xl"
+                        className="w-full max-w-md overflow-hidden rounded-2xl"
                         style={{ background: C.card }}
                     >
                         <div className="px-6 pt-5 pb-4" style={{ borderBottom: `1px solid ${C.border}` }}>
@@ -1237,54 +1180,71 @@ export default function LiveTournament({
                                 className="text-xl font-extrabold"
                                 style={{ fontFamily: DISPLAY, color: C.ink }}
                             >
-                                {finalMode === 'correct' ? 'Corriger le score' : 'Saisir le score'}
+                                {scoreMode === 'correct' ? 'Corriger le score' : 'Saisir le score'}
                             </h2>
                             <p className="text-xs" style={{ color: C.muted }}>
-                                Tableau {activeDivision} · le vainqueur atteint {maxScore} points.
+                                {scoreSubtitle}
                             </p>
                         </div>
                         <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-3 px-6 py-6">
-                            <div className="flex flex-col items-center gap-2.5">
+                            <div className="flex flex-col items-center gap-3">
                                 <span
-                                    className="line-clamp-2 text-center text-[13px] font-semibold"
+                                    className="flex items-center gap-1.5 text-center text-[13px] font-semibold"
                                     style={{ color: C.ink }}
                                 >
-                                    {finalScoring.team_a}
+                                    <NumberBadge n={scoring.team_a_number} />
+                                    <span className="line-clamp-2">{scoring.team_a}</span>
                                 </span>
-                                <ScoreStepper value={fScoreA} onChange={setFScoreA} max={maxScore} />
+                                <ScoreStepper value={scoreA} onChange={setScoreA} max={maxScore} />
                             </div>
                             <div
-                                className="pt-8 text-center text-xl font-bold"
+                                className="pt-10 text-center text-xl font-bold"
                                 style={{ fontFamily: DISPLAY, color: C.neutral }}
                             >
                                 VS
                             </div>
-                            <div className="flex flex-col items-center gap-2.5">
+                            <div className="flex flex-col items-center gap-3">
                                 <span
-                                    className="line-clamp-2 text-center text-[13px] font-semibold"
+                                    className="flex items-center gap-1.5 text-center text-[13px] font-semibold"
                                     style={{ color: C.ink }}
                                 >
-                                    {finalScoring.team_b}
+                                    <NumberBadge n={scoring.team_b_number} />
+                                    <span className="line-clamp-2">{scoring.team_b}</span>
                                 </span>
-                                <ScoreStepper value={fScoreB} onChange={setFScoreB} max={maxScore} />
+                                <ScoreStepper value={scoreB} onChange={setScoreB} max={maxScore} />
                             </div>
                         </div>
-                        <div className="flex gap-2.5 px-6 pb-5">
+                        {scoreForfeitable && (
+                            <div className="px-6 pb-1 text-center">
+                                <button
+                                    onClick={() => {
+                                        const m = scoring;
+                                        setScoring(null);
+                                        setForfeiting(m);
+                                    }}
+                                    className="text-xs font-medium underline-offset-2 hover:underline"
+                                    style={{ color: C.muted }}
+                                >
+                                    Déclarer un forfait
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex gap-2.5 px-6 pt-3 pb-5">
                             <button
-                                onClick={() => setFinalScoring(null)}
+                                onClick={() => setScoring(null)}
                                 className="flex-1 rounded-lg py-3 text-sm font-semibold"
                                 style={{ background: C.neutralBg, color: C.ink }}
                             >
                                 Annuler
                             </button>
                             <button
-                                onClick={submitFinal}
-                                disabled={fScoreA === fScoreB}
+                                onClick={submitScore}
+                                disabled={scoreA === scoreB}
                                 className="flex flex-[2] items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white disabled:opacity-40"
                                 style={{ background: C.green }}
                             >
                                 <Check className="size-4" />
-                                {finalMode === 'correct' ? 'Corriger' : 'Valider'}
+                                {scoreMode === 'correct' ? 'Corriger' : 'Valider le score'}
                             </button>
                         </div>
                     </div>
