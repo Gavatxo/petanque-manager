@@ -6,6 +6,7 @@ import {
     Crown,
     DoorClosed,
     DoorOpen,
+    Pencil,
     UserCheck,
     UserPlus,
     UsersRound,
@@ -36,13 +37,22 @@ import type { BreadcrumbItem } from '@/types';
 
 type RegistrationStatus = 'pending' | 'confirmed' | 'checked_in' | 'cancelled';
 
+type RegistrationPlayer = {
+    first_name: string;
+    last_name: string;
+    name: string;
+    is_captain: boolean;
+};
+
 type Registration = {
     id: number;
     team_name: string;
+    raw_team_name: string | null;
+    number: number | null;
     status: RegistrationStatus;
     status_label: string;
     has_team: boolean;
-    players: { name: string; is_captain: boolean }[];
+    players: RegistrationPlayer[];
 };
 
 type Props = {
@@ -55,12 +65,71 @@ type Props = {
         max_teams: number | null;
     };
     registrationOpen: boolean;
+    started: boolean;
     teamSize: number;
     registrationQr: string;
     registrations: Registration[];
     teamsCount: number;
     readyToConvert: number;
 };
+
+/** Champs partagés (nom d'équipe + joueurs) entre l'ajout et la modification. */
+function TeamFields({
+    teamSize,
+    errors,
+    defaults,
+}: {
+    teamSize: number;
+    errors: Record<string, string>;
+    defaults?: Registration;
+}) {
+    return (
+        <>
+            <div className="grid gap-2">
+                <Label htmlFor="team_name">
+                    Nom de l’équipe{' '}
+                    <span className="text-muted-foreground font-normal">(facultatif)</span>
+                </Label>
+                <Input
+                    id="team_name"
+                    name="team_name"
+                    placeholder="Les Fanny’s"
+                    defaultValue={defaults?.raw_team_name ?? ''}
+                />
+                <InputError message={errors.team_name} />
+            </div>
+
+            {Array.from({ length: teamSize }).map((_, index) => (
+                <div key={index} className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-1.5">
+                        <Label htmlFor={`p_${index}_first`}>
+                            Prénom {index === 0 ? '(capitaine)' : index + 1}
+                        </Label>
+                        <Input
+                            id={`p_${index}_first`}
+                            name={`players[${index}][first_name]`}
+                            defaultValue={defaults?.players[index]?.first_name ?? ''}
+                            required
+                        />
+                        <InputError message={errors[`players.${index}.first_name`]} />
+                    </div>
+                    <div className="grid gap-1.5">
+                        <Label htmlFor={`p_${index}_last`}>Nom</Label>
+                        <Input
+                            id={`p_${index}_last`}
+                            name={`players[${index}][last_name]`}
+                            defaultValue={defaults?.players[index]?.last_name ?? ''}
+                            required
+                        />
+                        <InputError message={errors[`players.${index}.last_name`]} />
+                    </div>
+                </div>
+            ))}
+
+            <InputError message={errors.players} />
+        </>
+    );
+}
 
 function AddTeamDialog({
     tournamentId,
@@ -81,7 +150,8 @@ function AddTeamDialog({
                 <DialogHeader>
                     <DialogTitle>Ajouter une équipe</DialogTitle>
                     <DialogDescription>
-                        Inscription saisie manuellement (elle sera directement confirmée).
+                        Saisie manuelle : la présence est directement validée et un numéro d’équipe
+                        est attribué.
                     </DialogDescription>
                 </DialogHeader>
                 <Form
@@ -94,44 +164,7 @@ function AddTeamDialog({
                 >
                     {({ processing, errors }) => (
                         <>
-                            <div className="grid gap-2">
-                                <Label htmlFor="team_name">
-                                    Nom de l’équipe{' '}
-                                    <span className="text-muted-foreground font-normal">
-                                        (facultatif)
-                                    </span>
-                                </Label>
-                                <Input id="team_name" name="team_name" placeholder="Les Fanny’s" />
-                                <InputError message={errors.team_name} />
-                            </div>
-
-                            {Array.from({ length: teamSize }).map((_, index) => (
-                                <div key={index} className="grid grid-cols-2 gap-2">
-                                    <div className="grid gap-1.5">
-                                        <Label htmlFor={`p_${index}_first`}>
-                                            Prénom {index === 0 ? '(capitaine)' : index + 1}
-                                        </Label>
-                                        <Input
-                                            id={`p_${index}_first`}
-                                            name={`players[${index}][first_name]`}
-                                            required
-                                        />
-                                        <InputError message={errors[`players.${index}.first_name`]} />
-                                    </div>
-                                    <div className="grid gap-1.5">
-                                        <Label htmlFor={`p_${index}_last`}>Nom</Label>
-                                        <Input
-                                            id={`p_${index}_last`}
-                                            name={`players[${index}][last_name]`}
-                                            required
-                                        />
-                                        <InputError message={errors[`players.${index}.last_name`]} />
-                                    </div>
-                                </div>
-                            ))}
-
-                            <InputError message={errors.players} />
-
+                            <TeamFields teamSize={teamSize} errors={errors} />
                             <DialogFooter>
                                 <Button
                                     type="button"
@@ -142,6 +175,60 @@ function AddTeamDialog({
                                 </Button>
                                 <Button type="submit" disabled={processing}>
                                     Ajouter
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function EditTeamDialog({
+    registration,
+    teamSize,
+    open,
+    onOpenChange,
+}: {
+    registration: Registration;
+    teamSize: number;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Modifier l’équipe</DialogTitle>
+                    <DialogDescription>
+                        Corrigez le nom ou les joueurs de cette équipe.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form
+                    action={`/organizer/registrations/${registration.id}`}
+                    method="put"
+                    options={{ preserveScroll: true }}
+                    onSuccess={() => onOpenChange(false)}
+                    className="space-y-4"
+                >
+                    {({ processing, errors }) => (
+                        <>
+                            <TeamFields
+                                teamSize={teamSize}
+                                errors={errors}
+                                defaults={registration}
+                            />
+                            <DialogFooter>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    onClick={() => onOpenChange(false)}
+                                >
+                                    Annuler
+                                </Button>
+                                <Button type="submit" disabled={processing}>
+                                    Enregistrer
                                 </Button>
                             </DialogFooter>
                         </>
@@ -170,25 +257,46 @@ function statusVariant(status: RegistrationStatus): 'default' | 'secondary' | 'o
     }
 }
 
-function RegistrationRow({ registration }: { registration: Registration }) {
+function RegistrationRow({
+    registration,
+    teamSize,
+    started,
+}: {
+    registration: Registration;
+    teamSize: number;
+    started: boolean;
+}) {
+    const [editing, setEditing] = useState(false);
     const patch = (action: string) =>
         router.patch(`/organizer/registrations/${registration.id}/${action}`, {}, { preserveScroll: true });
 
+    const canEdit = !started && registration.status !== 'cancelled';
+
     return (
         <li className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div className="min-w-0">
-                <p className="font-medium">{registration.team_name}</p>
-                <p className="text-muted-foreground truncate text-sm">
-                    {registration.players.map((player, index) => (
-                        <span key={index}>
-                            {index > 0 && ' · '}
-                            {player.is_captain && (
-                                <Crown className="mr-0.5 inline size-3 text-amber-500" />
-                            )}
-                            {player.name}
-                        </span>
-                    ))}
-                </p>
+            <div className="flex min-w-0 items-center gap-3">
+                {registration.number !== null && (
+                    <span
+                        className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums"
+                        title="Numéro d’équipe"
+                    >
+                        {registration.number}
+                    </span>
+                )}
+                <div className="min-w-0">
+                    <p className="font-medium">{registration.team_name}</p>
+                    <p className="text-muted-foreground truncate text-sm">
+                        {registration.players.map((player, index) => (
+                            <span key={index}>
+                                {index > 0 && ' · '}
+                                {player.is_captain && (
+                                    <Crown className="mr-0.5 inline size-3 text-amber-500" />
+                                )}
+                                {player.name}
+                            </span>
+                        ))}
+                    </p>
+                </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
@@ -197,6 +305,25 @@ function RegistrationRow({ registration }: { registration: Registration }) {
                         <UsersRound className="size-3" />
                         Équipe créée
                     </Badge>
+                )}
+
+                {canEdit && (
+                    <>
+                        <Button
+                            size="icon"
+                            variant="ghost"
+                            title="Modifier l’équipe"
+                            onClick={() => setEditing(true)}
+                        >
+                            <Pencil />
+                        </Button>
+                        <EditTeamDialog
+                            registration={registration}
+                            teamSize={teamSize}
+                            open={editing}
+                            onOpenChange={setEditing}
+                        />
+                    </>
                 )}
 
                 {registration.status === 'pending' && (
@@ -230,6 +357,7 @@ function RegistrationRow({ registration }: { registration: Registration }) {
 export default function TournamentRegistrations({
     tournament,
     registrationOpen,
+    started,
     teamSize,
     registrationQr,
     registrations,
@@ -365,6 +493,8 @@ export default function TournamentRegistrations({
                                             <RegistrationRow
                                                 key={registration.id}
                                                 registration={registration}
+                                                teamSize={teamSize}
+                                                started={started}
                                             />
                                         ))}
                                     </ul>

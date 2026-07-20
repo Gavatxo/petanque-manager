@@ -32,12 +32,15 @@ final class ConvertRegistrationsToTeams
                 ->orderBy('id')
                 ->get();
 
-            $seed = (int) $tournament->teams()->max('seed');
+            // Le numéro attribué à la validation de présence sert de seed
+            // (repère stable depuis le tirage). En repli — inscription sans
+            // numéro —, on prend le prochain seed disponible.
+            $fallbackSeed = (int) $tournament->registrations()->max('number');
             $created = 0;
 
             foreach ($registrations as $registration) {
                 /** @var Registration $registration */
-                $seed++;
+                $seed = $registration->number ?? ++$fallbackSeed;
 
                 $team = $tournament->teams()->create([
                     'registration_id' => $registration->id,

@@ -22,7 +22,7 @@ function manualPayload(string $name = 'Les Ajoutés'): array
     ];
 }
 
-test('an organizer can register a team manually as confirmed', function () {
+test('an organizer can register a team manually with presence validated and a number', function () {
     $user = User::factory()->create();
     $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
 
@@ -34,10 +34,97 @@ test('an organizer can register a team manually as confirmed', function () {
 
     expect($registration)->not->toBeNull()
         ->and($registration->team_name)->toBe('Les Ajoutés')
-        ->and($registration->status)->toBe(RegistrationStatus::Confirmed)
+        ->and($registration->status)->toBe(RegistrationStatus::CheckedIn)
         ->and($registration->confirmed_at)->not->toBeNull()
+        ->and($registration->checked_in_at)->not->toBeNull()
+        ->and($registration->number)->toBe(1)
         ->and($registration->players()->count())->toBe(2)
         ->and($registration->players()->where('is_captain', true)->count())->toBe(1);
+});
+
+test('team numbers are assigned in order across manual add and check-in', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
+
+    // Deux ajouts manuels : numéros 1 puis 2.
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('A'));
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('B'));
+
+    // Une inscription via lien, puis validation de présence : numéro 3.
+    $linked = Registration::factory()->for($tournament)->create();
+    $this->actingAs($user)->patch("/organizer/registrations/{$linked->id}/check-in");
+
+    expect(Registration::where('team_name', 'A')->first()->number)->toBe(1)
+        ->and(Registration::where('team_name', 'B')->first()->number)->toBe(2)
+        ->and($linked->fresh()->number)->toBe(3);
+});
+
+test('the team number becomes the official team seed at conversion', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
+
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('A'));
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('B'));
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations/create-teams");
+
+    $a = Registration::where('team_name', 'A')->first();
+    expect($a->team->seed)->toBe($a->number);
+});
+
+test('an organizer can edit a saved team name and players', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('Faute de frappe'));
+    $registration = Registration::first();
+
+    $this->actingAs($user)->put("/organizer/registrations/{$registration->id}", [
+        'team_name' => 'Nom Corrigé',
+        'players' => [
+            ['first_name' => 'Alice', 'last_name' => 'Un'],
+            ['first_name' => 'Bob', 'last_name' => 'Deux'],
+        ],
+    ])->assertRedirect();
+
+    $registration->refresh();
+    expect($registration->team_name)->toBe('Nom Corrigé')
+        ->and($registration->number)->toBe(1) // le numéro ne change pas
+        ->and($registration->players()->count())->toBe(2)
+        ->and($registration->players()->where('first_name', 'Alice')->exists())->toBeTrue();
+});
+
+test('editing a registration syncs the already-created official team', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('Avant'));
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations/create-teams");
+    $registration = Registration::first();
+
+    $this->actingAs($user)->put("/organizer/registrations/{$registration->id}", [
+        'team_name' => 'Après',
+        'players' => [
+            ['first_name' => 'Alice', 'last_name' => 'Un'],
+            ['first_name' => 'Bob', 'last_name' => 'Deux'],
+        ],
+    ]);
+
+    $team = $registration->fresh()->team;
+    expect($team->name)->toBe('Après')
+        ->and($team->players()->where('first_name', 'Alice')->exists())->toBeTrue();
+});
+
+test('the registrations page exposes team numbers and the started flag', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create(['team_format' => TeamFormat::Doublette]);
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/registrations", manualPayload('A'));
+
+    $this->actingAs($user)
+        ->get("/organizer/tournaments/{$tournament->id}/registrations")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('organizer/tournaments/registrations')
+            ->where('started', false)
+            ->where('registrations.0.number', 1)
+            ->where('registrations.0.status', 'checked_in'));
 });
 
 test('a manual registration requires the right number of players', function () {

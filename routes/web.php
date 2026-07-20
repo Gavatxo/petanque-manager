@@ -49,6 +49,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('tournaments.registrations.index');
         Route::post('tournaments/{tournament}/registrations', [OrganizerRegistrationController::class, 'store'])
             ->name('tournaments.registrations.store');
+        Route::put('registrations/{registration}', [OrganizerRegistrationController::class, 'update'])
+            ->name('registrations.update');
         Route::post('tournaments/{tournament}/registrations/create-teams', [OrganizerRegistrationController::class, 'createTeams'])
             ->name('tournaments.registrations.create-teams');
         Route::patch('registrations/{registration}/confirm', [OrganizerRegistrationController::class, 'confirm'])
