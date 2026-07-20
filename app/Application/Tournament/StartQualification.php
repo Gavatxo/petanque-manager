@@ -23,10 +23,11 @@ final class StartQualification
     ) {}
 
     /**
-     * Format choisi par l'organisateur au tirage. Si null, le format déjà
-     * enregistré sur le concours est conservé.
+     * Format choisi par l'organisateur au tirage (sous-ensemble de
+     * qualifying_rounds / tableaux_count / points_target). Si null, le format
+     * déjà enregistré sur le concours est conservé.
      *
-     * @param  array{qualifying_rounds: int, tableaux_count: int, points_target: int}|null  $format
+     * @param  array<string, int>|null  $format
      */
     public function handle(Tournament $tournament, ?array $format = null): void
     {

@@ -4,6 +4,7 @@ import {
     Ban,
     CheckCheck,
     Crown,
+    Dices,
     DoorClosed,
     DoorOpen,
     Pencil,
@@ -418,29 +419,50 @@ export default function TournamentRegistrations({
                                 officielles, prêtes pour le concours.
                             </CardDescription>
                         </CardHeader>
-                        <CardContent className="flex flex-wrap items-center gap-4">
-                            <div className="flex items-center gap-6 text-sm">
-                                <div>
-                                    <p className="text-2xl font-semibold tabular-nums">
-                                        {readyToConvert}
-                                    </p>
-                                    <p className="text-muted-foreground">présences à convertir</p>
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-6 text-sm">
+                                    <div>
+                                        <p className="text-2xl font-semibold tabular-nums">
+                                            {readyToConvert}
+                                        </p>
+                                        <p className="text-muted-foreground">
+                                            présences à convertir
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-semibold tabular-nums">
+                                            {teamsCount}
+                                        </p>
+                                        <p className="text-muted-foreground">équipes officielles</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-2xl font-semibold tabular-nums">
-                                        {teamsCount}
-                                    </p>
-                                    <p className="text-muted-foreground">équipes officielles</p>
-                                </div>
+                                <Button
+                                    className="ml-auto"
+                                    disabled={readyToConvert === 0}
+                                    onClick={createTeams}
+                                >
+                                    <UsersRound />
+                                    Créer {readyToConvert > 0 ? readyToConvert : ''} équipe(s)
+                                </Button>
                             </div>
-                            <Button
-                                className="ml-auto"
-                                disabled={readyToConvert === 0}
-                                onClick={createTeams}
-                            >
-                                <UsersRound />
-                                Créer {readyToConvert > 0 ? readyToConvert : ''} équipe(s)
-                            </Button>
+
+                            {teamsCount >= 2 && !started && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+                                    <p className="text-muted-foreground text-sm">
+                                        {teamsCount} équipe(s) prête(s).
+                                        {readyToConvert > 0
+                                            ? ` Il reste ${readyToConvert} présence(s) à convertir avant de lancer.`
+                                            : ' Vous pouvez lancer le tirage.'}
+                                    </p>
+                                    <Button asChild>
+                                        <Link href={`${showUrl}/live`}>
+                                            <Dices />
+                                            Procéder au tirage
+                                        </Link>
+                                    </Button>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
