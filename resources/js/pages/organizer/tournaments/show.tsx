@@ -5,6 +5,7 @@ import {
     CalendarDays,
     ClipboardList,
     Copy,
+    Dices,
     DoorClosed,
     DoorOpen,
     Download,
@@ -187,8 +188,12 @@ export default function ShowTournament({
                             className="inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white"
                             style={{ background: C.primary }}
                         >
-                            <Play className="size-3.5" />
-                            Piloter
+                            {formatDefined ? (
+                                <Play className="size-3.5" />
+                            ) : (
+                                <Dices className="size-3.5" />
+                            )}
+                            {formatDefined ? 'Piloter' : 'Procéder au tirage'}
                         </Link>
                     </div>
                 </div>
@@ -219,7 +224,7 @@ export default function ShowTournament({
                                 label="Qualifications"
                                 value={
                                     formatDefined
-                                        ? `${tournament.qualifying_rounds} parties · ${tournament.points_target} points`
+                                        ? `${tournament.qualifying_rounds} parties`
                                         : 'Défini au tirage'
                                 }
                             />

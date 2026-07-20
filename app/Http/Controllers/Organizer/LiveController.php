@@ -97,11 +97,13 @@ class LiveController extends Controller
             'points_target' => ['nullable', 'integer', 'min:1', 'max:21'],
         ]);
 
-        $format = isset(
-            $validated['qualifying_rounds'],
-            $validated['tableaux_count'],
-            $validated['points_target'],
-        ) ? $validated : null;
+        // On applique les champs réellement fournis (les points ne sont plus
+        // réglés côté client : ils restent à 13). Corps vide → format conservé.
+        $format = array_filter(
+            $validated,
+            static fn ($value) => $value !== null,
+        );
+        $format = $format === [] ? null : $format;
 
         try {
             $action->handle($tournament, $format);

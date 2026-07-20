@@ -170,13 +170,11 @@ export default function LiveTournament({
 
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     // Format proposé au tirage selon le nombre d'équipes, librement ajustable.
-    const [format, setFormat] = useState(
-        formatSuggestion ?? {
-            qualifying_rounds: tournament.qualifying_rounds,
-            tableaux_count: tournament.tableaux_count,
-            points_target: tournament.points_target,
-        },
-    );
+    // Les points ne sont pas réglés ici : une partie de pétanque se joue en 13.
+    const [format, setFormat] = useState({
+        qualifying_rounds: formatSuggestion?.qualifying_rounds ?? tournament.qualifying_rounds,
+        tableaux_count: formatSuggestion?.tableaux_count ?? tournament.tableaux_count,
+    });
     const [scoring, setScoring] = useState<MatchVM | null>(null);
     const [mode, setMode] = useState<'record' | 'correct'>('record');
     const [scoreA, setScoreA] = useState(tournament.points_target);
@@ -391,7 +389,7 @@ export default function LiveTournament({
                                             Format suggéré
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2.5">
+                                    <div className="grid grid-cols-2 gap-2.5">
                                         <FormatStepper
                                             label="Parties qualif."
                                             value={format.qualifying_rounds}
@@ -411,15 +409,6 @@ export default function LiveTournament({
                                             max={4}
                                             onChange={(v) =>
                                                 setFormat((f) => ({ ...f, tableaux_count: v }))
-                                            }
-                                        />
-                                        <FormatStepper
-                                            label="Points"
-                                            value={format.points_target}
-                                            min={1}
-                                            max={21}
-                                            onChange={(v) =>
-                                                setFormat((f) => ({ ...f, points_target: v }))
                                             }
                                         />
                                     </div>
