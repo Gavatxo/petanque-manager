@@ -21,6 +21,7 @@ use Illuminate\Support\Str;
  * @property int $id
  * @property int $tournament_id
  * @property string|null $team_name
+ * @property int|null $number
  * @property string $follow_token
  * @property RegistrationStatus $status
  * @property Carbon|null $confirmed_at
@@ -38,6 +39,7 @@ class Registration extends Model
     protected $fillable = [
         'tournament_id',
         'team_name',
+        'number',
         'follow_token',
         'status',
         'confirmed_at',
@@ -49,6 +51,7 @@ class Registration extends Model
     {
         return [
             'status' => RegistrationStatus::class,
+            'number' => 'integer',
             'confirmed_at' => 'datetime',
             'checked_in_at' => 'datetime',
             'cancelled_at' => 'datetime',
