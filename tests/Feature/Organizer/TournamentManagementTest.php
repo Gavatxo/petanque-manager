@@ -21,17 +21,16 @@ test('an organizer can see their tournaments index', function () {
         ->assertOk();
 });
 
-test('an organizer can create a tournament', function () {
+test('an organizer can create a tournament without setting the format', function () {
     $user = User::factory()->create();
 
+    // Le format (parties qualif., tableaux, points) n'est plus saisi à la création :
+    // il est suggéré puis confirmé au tirage. On ne l'envoie donc pas ici.
     $response = $this->actingAs($user)->post('/organizer/tournaments', [
         'name' => 'Concours du village',
         'location' => 'Marseille',
         'scheduled_at' => '2026-08-01 09:00',
         'team_format' => 'doublette',
-        'qualifying_rounds' => 3,
-        'tableaux_count' => 2,
-        'points_target' => 13,
         'max_teams' => 64,
     ]);
 
@@ -40,6 +39,7 @@ test('an organizer can create a tournament', function () {
     expect($tournament)->not->toBeNull()
         ->and($tournament->user_id)->toBe($user->id)
         ->and($tournament->status)->toBe(TournamentStatus::Draft)
+        ->and($tournament->current_phase)->toBeNull()
         ->and($tournament->registration_token)->not->toBeEmpty();
 
     $response->assertRedirect("/organizer/tournaments/{$tournament->id}");
@@ -51,9 +51,6 @@ test('creating a tournament requires a name', function () {
     $this->actingAs($user)
         ->post('/organizer/tournaments', [
             'team_format' => 'doublette',
-            'qualifying_rounds' => 3,
-            'tableaux_count' => 1,
-            'points_target' => 13,
         ])
         ->assertSessionHasErrors('name');
 
@@ -68,9 +65,6 @@ test('an organizer can update a tournament', function () {
         'name' => 'Nouveau nom',
         'location' => 'Aix',
         'team_format' => 'triplette',
-        'qualifying_rounds' => 4,
-        'tableaux_count' => 3,
-        'points_target' => 13,
         'status' => 'registration_open',
     ])->assertRedirect("/organizer/tournaments/{$tournament->id}");
 

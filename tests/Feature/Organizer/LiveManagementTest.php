@@ -83,6 +83,46 @@ test('starting qualification creates the first round', function () {
         ->and($tournament->matches()->where('phase', 'qualification')->where('status', 'playing')->count())->toBe(2);
 });
 
+test('the live page suggests a format based on team count', function () {
+    $user = User::factory()->create();
+    $tournament = liveTournament($user, teams: 16);
+
+    $this->actingAs($user)
+        ->get("/organizer/tournaments/{$tournament->id}/live")
+        ->assertInertia(fn ($page) => $page
+            ->where('formatSuggestion.qualifying_rounds', 4)
+            ->where('formatSuggestion.tableaux_count', 3)
+            ->where('formatSuggestion.points_target', 13));
+});
+
+test('starting qualification persists the format chosen at the draw', function () {
+    $user = User::factory()->create();
+    $tournament = liveTournament($user, teams: 4, rounds: 2, tableaux: 1);
+
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/qualification/start", [
+        'qualifying_rounds' => 3,
+        'tableaux_count' => 2,
+        'points_target' => 11,
+    ]);
+
+    $tournament->refresh();
+    expect($tournament->current_phase)->toBe('qualification')
+        ->and($tournament->qualifying_rounds)->toBe(3)
+        ->and($tournament->tableaux_count)->toBe(2)
+        ->and($tournament->points_target)->toBe(11);
+});
+
+test('starting qualification without a format keeps the stored one', function () {
+    $user = User::factory()->create();
+    $tournament = liveTournament($user, teams: 4, rounds: 2, tableaux: 2);
+
+    $this->actingAs($user)->post("/organizer/tournaments/{$tournament->id}/qualification/start");
+
+    $tournament->refresh();
+    expect($tournament->qualifying_rounds)->toBe(2)
+        ->and($tournament->tableaux_count)->toBe(2);
+});
+
 test('recording a result via the route finishes the match', function () {
     $user = User::factory()->create();
     $tournament = liveTournament($user);

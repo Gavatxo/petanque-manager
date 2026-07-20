@@ -72,9 +72,6 @@ export default function EditTournament({ tournament, formats, statuses }: Props)
                                 location: tournament.location ?? '',
                                 scheduled_at: toDateTimeLocalValue(tournament.scheduled_at),
                                 team_format: tournament.team_format,
-                                qualifying_rounds: tournament.qualifying_rounds,
-                                tableaux_count: tournament.tableaux_count,
-                                points_target: tournament.points_target,
                                 max_teams:
                                     tournament.max_teams === null
                                         ? ''

@@ -45,9 +45,6 @@ class TournamentController extends Controller
             'formats' => $this->formatOptions(),
             'defaults' => [
                 'team_format' => TeamFormat::Doublette->value,
-                'qualifying_rounds' => 3,
-                'tableaux_count' => 1,
-                'points_target' => 13,
             ],
         ]);
     }
@@ -194,6 +191,7 @@ class TournamentController extends Controller
             'scheduled_at' => $tournament->scheduled_at?->toIso8601String(),
             'status' => $tournament->status->value,
             'status_label' => $tournament->status->label(),
+            'current_phase' => $tournament->current_phase,
             'team_format' => $tournament->team_format->value,
             'team_format_label' => $tournament->team_format->label(),
             'qualifying_rounds' => $tournament->qualifying_rounds,

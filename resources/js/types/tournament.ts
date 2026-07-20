@@ -29,6 +29,8 @@ export type TournamentListItem = {
     scheduled_at: string | null;
     status: TournamentStatus;
     status_label: string;
+    /** null tant que le tirage n'a pas figé le format. */
+    current_phase: string | null;
     team_format: TeamFormat;
     team_format_label: string;
     qualifying_rounds: number;

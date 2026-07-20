@@ -44,6 +44,11 @@ type Props = {
     };
     counts: { teams: number; courts: number };
     canStartQualification: boolean;
+    formatSuggestion: {
+        qualifying_rounds: number;
+        tableaux_count: number;
+        points_target: number;
+    } | null;
     qualification: {
         currentRound: number;
         complete: boolean;
@@ -157,12 +162,21 @@ export default function LiveTournament({
     tournament,
     counts,
     canStartQualification,
+    formatSuggestion,
     qualification,
     finals,
 }: Props) {
     useTournamentEcho(tournament.id);
 
     const showUrl = `/organizer/tournaments/${tournament.id}`;
+    // Format proposé au tirage selon le nombre d'équipes, librement ajustable.
+    const [format, setFormat] = useState(
+        formatSuggestion ?? {
+            qualifying_rounds: tournament.qualifying_rounds,
+            tableaux_count: tournament.tableaux_count,
+            points_target: tournament.points_target,
+        },
+    );
     const [scoring, setScoring] = useState<MatchVM | null>(null);
     const [mode, setMode] = useState<'record' | 'correct'>('record');
     const [scoreA, setScoreA] = useState(tournament.points_target);
@@ -324,48 +338,111 @@ export default function LiveTournament({
                 </div>
             </header>
 
-            {/* Setup */}
+            {/* Setup — tirage : format suggéré selon le nombre d'équipes, ajustable */}
             {tournament.current_phase === null && (
                 <div className="flex flex-1 items-center justify-center p-6">
                     <div
-                        className="w-full max-w-md rounded-2xl p-8 text-center"
+                        className="w-full max-w-md rounded-2xl p-8"
                         style={{ background: C.card, border: `1px solid ${C.border}` }}
                     >
-                        <div
-                            className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full"
-                            style={{ background: C.greenBg, color: C.green }}
-                        >
-                            <Play className="size-6" />
+                        <div className="text-center">
+                            <div
+                                className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full"
+                                style={{ background: C.greenBg, color: C.green }}
+                            >
+                                <Play className="size-6" />
+                            </div>
+                            <h2
+                                className="text-xl font-extrabold"
+                                style={{ fontFamily: DISPLAY, color: C.ink }}
+                            >
+                                Prêt à lancer&nbsp;?
+                            </h2>
+                            <p className="mt-1 text-sm" style={{ color: C.muted }}>
+                                {counts.teams} équipe(s) officielle(s) ·{' '}
+                                {counts.courts > 0
+                                    ? `${counts.courts} terrain(s)`
+                                    : 'terrains non numérotés'}
+                                .
+                            </p>
                         </div>
-                        <h2
-                            className="text-xl font-extrabold"
-                            style={{ fontFamily: DISPLAY, color: C.ink }}
-                        >
-                            Prêt à lancer&nbsp;?
-                        </h2>
-                        <p className="mt-1 text-sm" style={{ color: C.muted }}>
-                            {counts.teams} équipe(s) officielle(s) ·{' '}
-                            {counts.courts > 0
-                                ? `${counts.courts} terrain(s)`
-                                : 'terrains non numérotés'}
-                            .
-                        </p>
-                        {!canStartQualification && (
-                            <p className="mt-3 text-sm" style={{ color: C.muted }}>
+
+                        {!canStartQualification ? (
+                            <p className="mt-4 text-center text-sm" style={{ color: C.muted }}>
                                 Il faut au moins 2 équipes officielles. Validez les présences puis
                                 créez les équipes depuis les inscriptions. Les terrains sont
                                 optionnels.
                             </p>
+                        ) : (
+                            <>
+                                <div
+                                    className="mt-6 rounded-xl p-4"
+                                    style={{ background: C.bg, border: `1px solid ${C.border}` }}
+                                >
+                                    <div className="mb-3 flex items-center gap-1.5">
+                                        <span
+                                            className="text-[13px] font-bold uppercase"
+                                            style={{
+                                                fontFamily: DISPLAY,
+                                                color: C.ink,
+                                                letterSpacing: '0.05em',
+                                            }}
+                                        >
+                                            Format suggéré
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2.5">
+                                        <FormatStepper
+                                            label="Parties qualif."
+                                            value={format.qualifying_rounds}
+                                            min={1}
+                                            max={12}
+                                            onChange={(v) =>
+                                                setFormat((f) => ({
+                                                    ...f,
+                                                    qualifying_rounds: v,
+                                                }))
+                                            }
+                                        />
+                                        <FormatStepper
+                                            label="Tableaux"
+                                            value={format.tableaux_count}
+                                            min={1}
+                                            max={4}
+                                            onChange={(v) =>
+                                                setFormat((f) => ({ ...f, tableaux_count: v }))
+                                            }
+                                        />
+                                        <FormatStepper
+                                            label="Points"
+                                            value={format.points_target}
+                                            min={1}
+                                            max={21}
+                                            onChange={(v) =>
+                                                setFormat((f) => ({ ...f, points_target: v }))
+                                            }
+                                        />
+                                    </div>
+                                    <p className="mt-3 text-[11px]" style={{ color: C.muted }}>
+                                        Proposé pour {counts.teams} équipe(s). Ajustez librement
+                                        avant de lancer.
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={() =>
+                                        router.post(`${showUrl}/qualification/start`, format, {
+                                            preserveScroll: true,
+                                        })
+                                    }
+                                    className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-bold text-white"
+                                    style={{ background: C.accent }}
+                                >
+                                    <Play className="size-4" />
+                                    Lancer les qualifications
+                                </button>
+                            </>
                         )}
-                        <button
-                            disabled={!canStartQualification}
-                            onClick={() => post(`${showUrl}/qualification/start`)}
-                            className="mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-3 text-sm font-bold text-white disabled:opacity-40"
-                            style={{ background: C.accent }}
-                        >
-                            <Play className="size-4" />
-                            Lancer les qualifications
-                        </button>
                     </div>
                 </div>
             )}
@@ -995,6 +1072,60 @@ function Stepper({
                 </span>
                 <button
                     onClick={() => onChange(value + 1)}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function FormatStepper({
+    label,
+    value,
+    min,
+    max,
+    onChange,
+}: {
+    label: string;
+    value: number;
+    min: number;
+    max: number;
+    onChange: (v: number) => void;
+}) {
+    const clamp = (v: number) => Math.max(min, Math.min(max, v));
+    const btn =
+        'flex size-7 items-center justify-center rounded-md text-lg leading-none font-light disabled:opacity-30';
+
+    return (
+        <div className="flex flex-col items-center gap-1.5">
+            <span className="text-center text-[11px] font-medium" style={{ color: C.muted }}>
+                {label}
+            </span>
+            <div className="flex items-center gap-1">
+                <button
+                    type="button"
+                    aria-label={`Diminuer ${label}`}
+                    onClick={() => onChange(clamp(value - 1))}
+                    disabled={value <= min}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    −
+                </button>
+                <span
+                    className="min-w-8 text-center text-xl tabular-nums"
+                    style={{ fontFamily: MONO, color: C.ink }}
+                >
+                    {value}
+                </span>
+                <button
+                    type="button"
+                    aria-label={`Augmenter ${label}`}
+                    onClick={() => onChange(clamp(value + 1))}
+                    disabled={value >= max}
                     className={btn}
                     style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
                 >
