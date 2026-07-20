@@ -108,6 +108,8 @@ export default function ShowTournament({
     const showUrl = `/organizer/tournaments/${tournament.id}`;
     const registrationOpen = tournament.status === 'registration_open';
     const tone = statusTone(tournament.status);
+    // Le format n'est figé qu'au tirage ; avant, on ne montre pas de valeurs.
+    const formatDefined = tournament.current_phase !== null;
 
     const copy = async () => {
         try {
@@ -215,12 +217,20 @@ export default function ShowTournament({
                             <InfoRow
                                 icon={Timer}
                                 label="Qualifications"
-                                value={`${tournament.qualifying_rounds} parties · ${tournament.points_target} points`}
+                                value={
+                                    formatDefined
+                                        ? `${tournament.qualifying_rounds} parties · ${tournament.points_target} points`
+                                        : 'Défini au tirage'
+                                }
                             />
                             <InfoRow
                                 icon={LayoutGrid}
                                 label="Tableaux finaux"
-                                value={`${tournament.tableaux_count} tableau(x)`}
+                                value={
+                                    formatDefined
+                                        ? `${tournament.tableaux_count} tableau(x)`
+                                        : 'Défini au tirage'
+                                }
                             />
                             <InfoRow
                                 icon={Target}

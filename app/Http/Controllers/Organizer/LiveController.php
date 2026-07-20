@@ -9,6 +9,7 @@ use App\Application\Tournament\RecordMatchResult;
 use App\Application\Tournament\StartFinals;
 use App\Application\Tournament\StartQualification;
 use App\Application\Tournament\Support\KnockoutEngineBuilder;
+use App\Domain\Tournament\Configuration\FormatSuggestion;
 use App\Domain\Tournament\Exception\InvalidTournamentStateException;
 use App\Http\Controllers\Controller;
 use App\Models\Court;
@@ -67,6 +68,9 @@ class LiveController extends Controller
             ],
             'canStartQualification' => $phase === null
                 && $tournament->teams->count() >= 2,
+            'formatSuggestion' => $phase === null
+                ? FormatSuggestion::forTeamCount($tournament->teams->count())->toArray()
+                : null,
             'qualification' => $phase === null ? null : [
                 'currentRound' => $tournament->matches->where('phase', 'qualification')->max('round') ?? 0,
                 'complete' => $qualificationMatches->isNotEmpty()
@@ -80,12 +84,27 @@ class LiveController extends Controller
         ]);
     }
 
-    public function startQualification(Tournament $tournament, StartQualification $action): RedirectResponse
+    public function startQualification(Request $request, Tournament $tournament, StartQualification $action): RedirectResponse
     {
         $this->authorize('update', $tournament);
 
+        // L'organisateur confirme (ou ajuste) au tirage le format suggéré selon
+        // le nombre d'équipes. Sans corps de requête, le format déjà enregistré
+        // est conservé.
+        $validated = $request->validate([
+            'qualifying_rounds' => ['nullable', 'integer', 'min:1', 'max:12'],
+            'tableaux_count' => ['nullable', 'integer', 'min:1', 'max:4'],
+            'points_target' => ['nullable', 'integer', 'min:1', 'max:21'],
+        ]);
+
+        $format = isset(
+            $validated['qualifying_rounds'],
+            $validated['tableaux_count'],
+            $validated['points_target'],
+        ) ? $validated : null;
+
         try {
-            $action->handle($tournament);
+            $action->handle($tournament, $format);
         } catch (TournamentWorkflowException $e) {
             return $this->error($e->getMessage());
         }

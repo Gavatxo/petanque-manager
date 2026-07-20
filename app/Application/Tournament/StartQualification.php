@@ -11,8 +11,10 @@ use App\Models\Tournament;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Lance la phase de qualification : vérifie les prérequis, positionne le
- * concours en « qualification » et crée les parties de la première ronde.
+ * Lance la phase de qualification : vérifie les prérequis, fige le format retenu
+ * (parties qualificatives, tableaux, points — suggérés selon le nombre d'équipes
+ * mais ajustables), positionne le concours en « qualification » et crée les
+ * parties de la première ronde.
  */
 final class StartQualification
 {
@@ -20,7 +22,13 @@ final class StartQualification
         private readonly CreateQualificationMatches $createMatches,
     ) {}
 
-    public function handle(Tournament $tournament): void
+    /**
+     * Format choisi par l'organisateur au tirage. Si null, le format déjà
+     * enregistré sur le concours est conservé.
+     *
+     * @param  array{qualifying_rounds: int, tableaux_count: int, points_target: int}|null  $format
+     */
+    public function handle(Tournament $tournament, ?array $format = null): void
     {
         if ($tournament->current_phase !== null) {
             throw TournamentWorkflowException::because('Le concours a déjà démarré.');
@@ -33,11 +41,12 @@ final class StartQualification
         // Les terrains sont optionnels (concours sur terrains non numérotés) :
         // sans terrain, les parties se jouent sans emplacement attribué.
 
-        DB::transaction(function () use ($tournament): void {
+        DB::transaction(function () use ($tournament, $format): void {
             $tournament->update([
                 'status' => TournamentStatus::Running,
                 'current_phase' => 'qualification',
                 'started_at' => now(),
+                ...($format ?? []),
             ]);
 
             $this->createMatches->handle($tournament->fresh());

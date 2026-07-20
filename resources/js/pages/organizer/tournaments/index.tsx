@@ -65,8 +65,9 @@ function TournamentCard({ tournament }: { tournament: TournamentListItem }) {
                     </span>
                     <span className="flex items-center gap-1.5">
                         <Target className="size-4 shrink-0" />
-                        {tournament.qualifying_rounds} parties · {tournament.tableaux_count}{' '}
-                        tableau(x)
+                        {tournament.current_phase === null
+                            ? 'Format défini au tirage'
+                            : `${tournament.qualifying_rounds} parties · ${tournament.tableaux_count} tableau(x)`}
                     </span>
                     <span className="flex items-center gap-1.5">
                         <LayoutGrid className="size-4 shrink-0" />
