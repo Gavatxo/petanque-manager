@@ -9,6 +9,7 @@ use App\Application\Tournament\RecordMatchResult;
 use App\Application\Tournament\StartFinals;
 use App\Application\Tournament\StartQualification;
 use App\Application\Tournament\Support\KnockoutEngineBuilder;
+use App\Domain\Tournament\Configuration\DivisionPlanner;
 use App\Domain\Tournament\Configuration\FormatSuggestion;
 use App\Domain\Tournament\Exception\InvalidTournamentStateException;
 use App\Http\Controllers\Controller;
@@ -51,6 +52,9 @@ class LiveController extends Controller
 
         $phase = $tournament->current_phase;
 
+        $qualificationComplete = $qualificationMatches->isNotEmpty()
+            && $qualificationMatches->whereIn('status', ['pending', 'playing'])->isEmpty();
+
         return Inertia::render('organizer/tournaments/live', [
             'tournament' => [
                 'id' => $tournament->id,
@@ -73,11 +77,23 @@ class LiveController extends Controller
                 : null,
             'qualification' => $phase === null ? null : [
                 'currentRound' => $tournament->matches->where('phase', 'qualification')->max('round') ?? 0,
-                'complete' => $qualificationMatches->isNotEmpty()
-                    && $qualificationMatches->whereIn('status', ['pending', 'playing'])->isEmpty(),
+                'complete' => $qualificationComplete,
                 'rounds' => $this->groupByRound($qualificationMatches, $names, $courts),
                 'standings' => $this->standings($tournament, $names),
             ],
+            // Aperçu de la répartition en tableaux, proposé à la clôture des
+            // qualifications (avant de lancer les phases finales).
+            'finalsPreview' => ($phase === 'qualification' && $qualificationComplete)
+                ? [
+                    'tableaux_count' => $tournament->tableaux_count,
+                    'team_count' => $tournament->teams->count(),
+                    'upper_sizes' => $tournament->division_sizes
+                        ?? DivisionPlanner::suggestUpperSizes(
+                            $tournament->teams->count(),
+                            $tournament->tableaux_count,
+                        ),
+                ]
+                : null,
             'finals' => in_array($phase, ['finals', 'completed'], true)
                 ? $this->finals($tournament, $knockoutMatches, $names, $knockoutBuilder)
                 : null,
@@ -156,12 +172,23 @@ class LiveController extends Controller
         );
     }
 
-    public function startFinals(Tournament $tournament, StartFinals $action): RedirectResponse
+    public function startFinals(Request $request, Tournament $tournament, StartFinals $action): RedirectResponse
     {
         $this->authorize('update', $tournament);
 
+        // Tailles des tableaux du haut choisies à la clôture (puissances de 2
+        // conseillées ; le dernier tableau prend le reste). Absent → suggestion.
+        $validated = $request->validate([
+            'division_sizes' => ['nullable', 'array', 'max:3'],
+            'division_sizes.*' => ['integer', 'min:1', 'max:256'],
+        ]);
+
+        if (array_key_exists('division_sizes', $validated)) {
+            $tournament->update(['division_sizes' => $validated['division_sizes'] ?: null]);
+        }
+
         try {
-            $action->handle($tournament);
+            $action->handle($tournament->fresh());
         } catch (TournamentWorkflowException $e) {
             return $this->error($e->getMessage());
         }

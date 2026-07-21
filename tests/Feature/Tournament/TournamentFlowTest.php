@@ -56,6 +56,61 @@ function playOut(Tournament $tournament, string $phase, string $status, callable
     }
 }
 
+test('les tailles de tableaux choisies pilotent la répartition (le dernier prend le reste)', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create([
+        'qualifying_rounds' => 3,
+        'tableaux_count' => 3,
+        'division_sizes' => [4, 4],   // A=4, B=4, C=reste
+        'points_target' => 13,
+        'status' => TournamentStatus::CheckIn,
+    ]);
+    for ($i = 1; $i <= 10; $i++) {
+        Team::create(['tournament_id' => $tournament->id, 'name' => "Équipe {$i}", 'seed' => $i]);
+    }
+    for ($c = 1; $c <= 5; $c++) {
+        Court::create(['tournament_id' => $tournament->id, 'label' => (string) $c]);
+    }
+
+    app(StartQualification::class)->handle($tournament);
+    playOut($tournament, 'qualification', 'playing', fn (int $a, int $b): bool => $a > $b);
+    app(CompleteQualification::class)->handle($tournament->fresh());
+
+    $tournament->load('teams');
+    $byDivision = $tournament->teams->groupBy('division')->map->count();
+
+    expect($byDivision['A'])->toBe(4)
+        ->and($byDivision['B'])->toBe(4)
+        ->and($byDivision['C'])->toBe(2); // le reste
+});
+
+test('sans tailles définies, la répartition suit une suggestion en puissances de 2', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::factory()->for($user)->create([
+        'qualifying_rounds' => 3,
+        'tableaux_count' => 3,
+        'division_sizes' => null,   // suggestion automatique
+        'points_target' => 13,
+        'status' => TournamentStatus::CheckIn,
+    ]);
+    for ($i = 1; $i <= 21; $i++) {
+        Team::create(['tournament_id' => $tournament->id, 'name' => "Équipe {$i}", 'seed' => $i]);
+    }
+
+    app(StartQualification::class)->handle($tournament);
+    playOut($tournament, 'qualification', 'playing', fn (int $a, int $b): bool => $a > $b);
+    app(CompleteQualification::class)->handle($tournament->fresh());
+
+    $tournament->load('teams');
+    $byDivision = $tournament->teams->groupBy('division')->map->count();
+
+    // 21 équipes, 3 tableaux → suggestion A=8, B=8, C=5.
+    expect($byDivision['A'])->toBe(8)
+        ->and($byDivision['B'])->toBe(8)
+        ->and($byDivision['C'])->toBe(5)
+        ->and($tournament->teams->count())->toBe(21);
+});
+
 test('un concours de 20 équipes va des qualifications au classement final', function () {
     $user = User::factory()->create();
 
