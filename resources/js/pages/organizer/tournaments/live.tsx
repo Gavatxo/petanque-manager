@@ -64,9 +64,69 @@ type Props = {
         standings: StandingVM[];
     } | null;
     finals: DivisionVM[] | null;
+    finalsPreview: {
+        tableaux_count: number;
+        team_count: number;
+        upper_sizes: number[];
+    } | null;
 };
 
 const GREEN_DOT = 'oklch(0.52 0.14 152)';
+const DIV_LABELS = ['A', 'B', 'C', 'D'];
+
+/** Plus petite puissance de 2 ≥ n (taille du bracket). */
+const bracketSize = (n: number): number => {
+    if (n <= 1) {
+        return n;
+    }
+
+    let p = 1;
+
+    while (p < n) {
+        p *= 2;
+    }
+
+    return p;
+};
+const nextPow2 = (n: number): number => {
+    let p = 1;
+
+    while (p <= n) {
+        p *= 2;
+    }
+
+    return p;
+};
+const prevPow2 = (n: number): number => {
+    let p = 1;
+
+    while (p * 2 <= n) {
+        p *= 2;
+    }
+
+    return p;
+};
+
+/** Répartition prévue : taille de chaque tableau + qualifiés d'office. */
+function divisionBreakdown(
+    upperSizes: number[],
+    teamCount: number,
+    tableauxCount: number,
+): { label: string; size: number; byes: number; isLast: boolean }[] {
+    const labels = DIV_LABELS.slice(0, tableauxCount);
+    let cursor = 0;
+
+    return labels.map((label, i) => {
+        const isLast = i === labels.length - 1;
+        const size = isLast
+            ? Math.max(0, teamCount - cursor)
+            : Math.max(0, Math.min(upperSizes[i] ?? 0, teamCount - cursor));
+        cursor += size;
+        const byes = size >= 2 ? bracketSize(size) - size : 0;
+
+        return { label, size, byes, isLast };
+    });
+}
 
 function LiveDot({ color, pulse }: { color: string; pulse?: boolean }) {
     return (
@@ -219,6 +279,7 @@ export default function LiveTournament({
     formatSuggestion,
     qualification,
     finals,
+    finalsPreview,
 }: Props) {
     useTournamentEcho(tournament.id);
 
@@ -226,6 +287,10 @@ export default function LiveTournament({
     const maxScore = tournament.points_target;
     const notStarted = tournament.current_phase === null;
     const finalsAvailable = finals !== null && finals.length > 0;
+
+    // Configuration des tableaux à la clôture (tailles en puissances de 2).
+    const [configOpen, setConfigOpen] = useState(false);
+    const [upperSizes, setUpperSizes] = useState<number[]>(finalsPreview?.upper_sizes ?? []);
 
     // Setup (tirage) — format suggéré, ajustable. Les points restent à 13.
     const [format, setFormat] = useState({
@@ -593,14 +658,12 @@ export default function LiveTournament({
                     </button>
                 ) : (
                     <button
-                        onClick={() =>
-                            router.post(`${showUrl}/finals/start`, {}, { preserveScroll: true })
-                        }
+                        onClick={() => setConfigOpen(true)}
                         className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-bold text-white"
                         style={{ background: C.accent }}
                     >
                         <Flag className="size-3.5" />
-                        Lancer les phases finales
+                        Composer les tableaux
                     </button>
                 );
             }
@@ -1245,6 +1308,177 @@ export default function LiveTournament({
                             >
                                 <Check className="size-4" />
                                 {scoreMode === 'correct' ? 'Corriger' : 'Valider le score'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Composition des tableaux (clôture des qualifications) */}
+            {configOpen && finalsPreview && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center p-5"
+                    style={{ background: 'oklch(0 0 0 / 0.52)', backdropFilter: 'blur(3px)' }}
+                    onClick={(e) => e.target === e.currentTarget && setConfigOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-md overflow-hidden rounded-2xl"
+                        style={{ background: C.card }}
+                    >
+                        <div
+                            className="px-6 pt-5 pb-4"
+                            style={{ borderBottom: `1px solid ${C.border}` }}
+                        >
+                            <h2
+                                className="text-xl font-extrabold"
+                                style={{ fontFamily: DISPLAY, color: C.ink }}
+                            >
+                                Composer les tableaux
+                            </h2>
+                            <p className="text-xs" style={{ color: C.muted }}>
+                                {finalsPreview.team_count} équipes classées par victoires puis goal
+                                average. Tailles en puissances de 2 = aucun qualifié d'office.
+                            </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 px-6 py-5">
+                            {/* Steppers : tableaux du haut (le dernier prend le reste) */}
+                            <div className="flex flex-wrap gap-4">
+                                {DIV_LABELS.slice(0, finalsPreview.tableaux_count - 1).map(
+                                    (label, i) => (
+                                        <div key={label} className="flex flex-col items-center gap-1.5">
+                                            <span
+                                                className="text-[11px] font-bold uppercase"
+                                                style={{ fontFamily: DISPLAY, color: C.muted }}
+                                            >
+                                                Tableau {label}
+                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Diminuer tableau ${label}`}
+                                                    onClick={() =>
+                                                        setUpperSizes((s) =>
+                                                            s.map((v, j) =>
+                                                                j === i ? Math.max(1, prevPow2(v)) : v,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className="flex size-7 items-center justify-center rounded-md text-lg leading-none"
+                                                    style={{
+                                                        background: C.neutralBg,
+                                                        border: `1px solid ${C.border}`,
+                                                        color: C.ink,
+                                                    }}
+                                                >
+                                                    −
+                                                </button>
+                                                <span
+                                                    className="min-w-8 text-center text-xl tabular-nums"
+                                                    style={{ fontFamily: MONO, color: C.ink }}
+                                                >
+                                                    {upperSizes[i] ?? 0}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    aria-label={`Augmenter tableau ${label}`}
+                                                    onClick={() =>
+                                                        setUpperSizes((s) =>
+                                                            s.map((v, j) =>
+                                                                j === i
+                                                                    ? Math.min(128, nextPow2(v))
+                                                                    : v,
+                                                            ),
+                                                        )
+                                                    }
+                                                    className="flex size-7 items-center justify-center rounded-md text-lg leading-none"
+                                                    style={{
+                                                        background: C.neutralBg,
+                                                        border: `1px solid ${C.border}`,
+                                                        color: C.ink,
+                                                    }}
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+
+                            {/* Aperçu de la répartition */}
+                            <div
+                                className="mt-1 flex flex-col gap-1.5 rounded-xl p-3"
+                                style={{ background: C.bg, border: `1px solid ${C.border}` }}
+                            >
+                                {divisionBreakdown(
+                                    upperSizes,
+                                    finalsPreview.team_count,
+                                    finalsPreview.tableaux_count,
+                                ).map((row) => (
+                                    <div
+                                        key={row.label}
+                                        className="flex items-center justify-between text-[13px]"
+                                    >
+                                        <span style={{ color: C.ink, fontWeight: 600 }}>
+                                            Tableau {row.label}
+                                            {row.isLast && (
+                                                <span
+                                                    className="ml-1 text-[11px] font-normal"
+                                                    style={{ color: C.muted }}
+                                                >
+                                                    (reste)
+                                                </span>
+                                            )}
+                                        </span>
+                                        <span className="flex items-center gap-2">
+                                            <span
+                                                className="tabular-nums"
+                                                style={{ fontFamily: MONO, color: C.ink }}
+                                            >
+                                                {row.size} éq.
+                                            </span>
+                                            <span
+                                                className="rounded px-1.5 text-[11px] font-semibold"
+                                                style={{
+                                                    background: row.byes > 0 ? C.amberBg : C.greenBg,
+                                                    color: row.byes > 0 ? C.amberText : C.greenText,
+                                                }}
+                                            >
+                                                {row.byes > 0
+                                                    ? `${row.byes} qualifié(s) d'office`
+                                                    : 'plein'}
+                                            </span>
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex gap-2.5 px-6 pb-5">
+                            <button
+                                onClick={() => setConfigOpen(false)}
+                                className="flex-1 rounded-lg py-3 text-sm font-semibold"
+                                style={{ background: C.neutralBg, color: C.ink }}
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={() =>
+                                    router.post(
+                                        `${showUrl}/finals/start`,
+                                        { division_sizes: upperSizes },
+                                        {
+                                            preserveScroll: true,
+                                            onSuccess: () => setConfigOpen(false),
+                                        },
+                                    )
+                                }
+                                className="flex flex-[2] items-center justify-center gap-2 rounded-lg py-3 text-sm font-bold text-white"
+                                style={{ background: C.accent }}
+                            >
+                                <Flag className="size-4" />
+                                Lancer les phases finales
                             </button>
                         </div>
                     </div>
