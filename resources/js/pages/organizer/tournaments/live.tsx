@@ -201,6 +201,64 @@ function ScoreStepper({
     );
 }
 
+/** Réglage de la taille d'un tableau : ± par puissance de 2, ou saisie libre. */
+function SizeStepper({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value: number;
+    onChange: (v: number) => void;
+}) {
+    const clamp = (v: number) => Math.max(1, Math.min(256, v));
+    const btn = 'flex size-8 items-center justify-center rounded-md text-xl leading-none';
+
+    return (
+        <div className="flex flex-col items-center gap-1.5">
+            <span
+                className="text-[11px] font-bold uppercase"
+                style={{ fontFamily: DISPLAY, color: C.muted }}
+            >
+                {label}
+            </span>
+            <div className="flex items-center gap-1.5">
+                <button
+                    type="button"
+                    aria-label={`Diminuer ${label}`}
+                    onClick={() => onChange(Math.max(1, prevPow2(value)))}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    −
+                </button>
+                <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={256}
+                    value={value}
+                    onChange={(e) => {
+                        const v = Number.parseInt(e.target.value, 10);
+                        onChange(Number.isNaN(v) ? 1 : clamp(v));
+                    }}
+                    className="w-12 text-center text-2xl tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    style={{ fontFamily: MONO, color: C.ink, background: 'transparent', border: 'none' }}
+                />
+                <button
+                    type="button"
+                    aria-label={`Augmenter ${label}`}
+                    onClick={() => onChange(Math.min(256, nextPow2(value)))}
+                    className={btn}
+                    style={{ background: C.neutralBg, border: `1px solid ${C.border}`, color: C.ink }}
+                >
+                    +
+                </button>
+            </div>
+        </div>
+    );
+}
+
 /** Numéro d'équipe — repère principal pour l'organisateur, affiché en évidence. */
 function NumberBadge({ n }: { n: number | null }) {
     if (n === null) {
@@ -290,7 +348,16 @@ export default function LiveTournament({
 
     // Configuration des tableaux à la clôture (tailles en puissances de 2).
     const [configOpen, setConfigOpen] = useState(false);
-    const [upperSizes, setUpperSizes] = useState<number[]>(finalsPreview?.upper_sizes ?? []);
+    const [upperSizes, setUpperSizes] = useState<number[]>([]);
+
+    // (Re)charge les tailles suggérées à l'ouverture : au montage, finalsPreview
+    // peut encore être nul (qualifs en cours), d'où un état vide non modifiable.
+    const openFinalsConfig = () => {
+        const count = finalsPreview?.tableaux_count ?? 1;
+        const base = finalsPreview?.upper_sizes ?? [];
+        setUpperSizes(Array.from({ length: Math.max(0, count - 1) }, (_, i) => base[i] ?? 8));
+        setConfigOpen(true);
+    };
 
     // Setup (tirage) — format suggéré, ajustable. Les points restent à 13.
     const [format, setFormat] = useState({
@@ -658,7 +725,7 @@ export default function LiveTournament({
                     </button>
                 ) : (
                     <button
-                        onClick={() => setConfigOpen(true)}
+                        onClick={openFinalsConfig}
                         className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-bold text-white"
                         style={{ background: C.accent }}
                     >
@@ -1342,66 +1409,20 @@ export default function LiveTournament({
                         </div>
 
                         <div className="flex flex-col gap-3 px-6 py-5">
-                            {/* Steppers : tableaux du haut (le dernier prend le reste) */}
+                            {/* Réglages : tableaux du haut (le dernier prend le reste) */}
                             <div className="flex flex-wrap gap-4">
                                 {DIV_LABELS.slice(0, finalsPreview.tableaux_count - 1).map(
                                     (label, i) => (
-                                        <div key={label} className="flex flex-col items-center gap-1.5">
-                                            <span
-                                                className="text-[11px] font-bold uppercase"
-                                                style={{ fontFamily: DISPLAY, color: C.muted }}
-                                            >
-                                                Tableau {label}
-                                            </span>
-                                            <div className="flex items-center gap-1.5">
-                                                <button
-                                                    type="button"
-                                                    aria-label={`Diminuer tableau ${label}`}
-                                                    onClick={() =>
-                                                        setUpperSizes((s) =>
-                                                            s.map((v, j) =>
-                                                                j === i ? Math.max(1, prevPow2(v)) : v,
-                                                            ),
-                                                        )
-                                                    }
-                                                    className="flex size-7 items-center justify-center rounded-md text-lg leading-none"
-                                                    style={{
-                                                        background: C.neutralBg,
-                                                        border: `1px solid ${C.border}`,
-                                                        color: C.ink,
-                                                    }}
-                                                >
-                                                    −
-                                                </button>
-                                                <span
-                                                    className="min-w-8 text-center text-xl tabular-nums"
-                                                    style={{ fontFamily: MONO, color: C.ink }}
-                                                >
-                                                    {upperSizes[i] ?? 0}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    aria-label={`Augmenter tableau ${label}`}
-                                                    onClick={() =>
-                                                        setUpperSizes((s) =>
-                                                            s.map((v, j) =>
-                                                                j === i
-                                                                    ? Math.min(128, nextPow2(v))
-                                                                    : v,
-                                                            ),
-                                                        )
-                                                    }
-                                                    className="flex size-7 items-center justify-center rounded-md text-lg leading-none"
-                                                    style={{
-                                                        background: C.neutralBg,
-                                                        border: `1px solid ${C.border}`,
-                                                        color: C.ink,
-                                                    }}
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <SizeStepper
+                                            key={label}
+                                            label={`Tableau ${label}`}
+                                            value={upperSizes[i] ?? 0}
+                                            onChange={(v) =>
+                                                setUpperSizes((s) =>
+                                                    s.map((x, j) => (j === i ? v : x)),
+                                                )
+                                            }
+                                        />
                                     ),
                                 )}
                             </div>
